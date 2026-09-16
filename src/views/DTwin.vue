@@ -34,13 +34,13 @@
     </div>
 
     <!-- 右侧文案说明 -->
-    <section class="doc">
-      <h2 class="doc-title">车间数字孪生 · InstancedMesh × 500</h2>
-      <p class="doc-sub">
+    <section class="txt">
+      <h2 class="txt-title">车间数字孪生 · InstancedMesh × 500</h2>
+      <p class="txt-sub">
         俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 &lt;
         10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。
       </p>
-      <p class="doc-hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层</p>
+      <p class="txt-hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层</p>
     </section>
   </div>
 </template>
@@ -150,42 +150,42 @@ onUnmounted(dispose)
   gap: 16px;
   align-items: stretch;
   box-sizing: border-box;
-  /* App.vue 头部导航 + RouterView 边框占掉约 26px，其余给页面；
+  /* 导航是左侧边栏不占纵向空间，直接铺满整屏；
      舞台用 flex:1 吃掉剩余空间，杜绝纵向滚动条 */
-  height: calc(100vh - 26px);
+  height: 100vh;
   overflow: hidden;
-  padding: 16px 12px;
-  background-color: #f4efe4;
 }
 
 /* ---- 右侧文案说明 ---- */
-.doc {
+.txt {
   width: 260px;
   flex-shrink: 0;
   padding: 12px;
   border-left: 1px solid rgba(0, 0, 0, 0.08);
+  background: #3e98ff;
+  color: #000;
 }
 
-.doc-title {
+.txt-title {
   font-size: 15px;
   font-weight: bold;
-  color: #1f6feb;
+  color: #000;
 }
 
-.doc-sub {
+.txt-sub {
   margin-top: 8px;
   font-size: 11px;
   line-height: 1.7;
-  color: #8a7f66;
+  color: #000;
 }
 
-.doc-hint {
+.txt-hint {
   margin-top: 14px;
   padding-top: 10px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.12);
+  border-top: 1px dashed #000;
   font-size: 10px;
   line-height: 1.8;
-  color: #8a7f66;
+  color: #000;
 }
 
 .stage {
@@ -193,9 +193,6 @@ onUnmounted(dispose)
   width: 100%;
   flex: 1;
   min-height: 200px;
-  margin-top: 12px;
-  border: 4px solid black;
-  border-radius: 6px;
   overflow: hidden;
 }
 

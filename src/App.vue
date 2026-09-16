@@ -30,6 +30,7 @@ import { RouterLink, RouterView } from 'vue-router'
 <style scoped>
 .App__vue {
   display: flex;
+  min-height: 100vh;
 }
 
 .theNav {
@@ -56,7 +57,7 @@ nav a {
 }
 
 nav a.router-link-active {
-  color: oklch(0.5 0.2 50); /* 激活项偏暖色 */
+  color: var(--color-primary);
 }
 
 /* ---- Rolling text 效果（motion.dev fresh-site-navigation-links）----
@@ -103,5 +104,6 @@ nav a:hover .fresh-rolling-text-copy--incoming {
 
 .tag__RouterView {
   flex: 1;
+  background: #fff;
 }
 </style>

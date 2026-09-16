@@ -139,7 +139,7 @@ export function createWorkshopScene(container, hooks = {}) {
     camera.position.copy(HOME_POS)
 
     scene = new THREE.Scene()
-    scene.background = new THREE.Color('#f4efe4')
+    scene.background = new THREE.Color('#eef1f4')
 
     // 灯光：设备材质是自绘光照不消费它；给将来 glb 的 PBR 材质留着
     scene.add(new THREE.AmbientLight('#ffffff', 0.8))
@@ -149,8 +149,10 @@ export function createWorkshopScene(container, hooks = {}) {
 
     // 车间地面 + 网格
     const floorGeo = new THREE.PlaneGeometry(84, 66).rotateX(-Math.PI / 2)
-    scene.add(new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ color: '#cfc9ba' })))
-    scene.add(new THREE.GridHelper(66, 30, 0x8a7f66, 0xdcd4c0))
+    scene.add(new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ color: '#080B08' })))
+    const grid = new THREE.GridHelper(66, 30, 0x8a7f66, 0xdcd4c0)
+    grid.position.y = -0.05
+    scene.add(grid)
 
     // —— 设备材质：自绘 Lambert 光照 + GPU 呼吸动画 ——
     deviceMaterial = new THREE.ShaderMaterial({
