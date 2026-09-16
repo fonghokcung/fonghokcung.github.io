@@ -1,95 +1,67 @@
 <script setup>
-import WelcomeItem from './WelcomeItem.vue'
-import DocumentationIcon from './icons/IconDocumentation.vue'
-import ToolingIcon from './icons/IconTooling.vue'
-import EcosystemIcon from './icons/IconEcosystem.vue'
-import CommunityIcon from './icons/IconCommunity.vue'
-import SupportIcon from './icons/IconSupport.vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import * as THREE from 'three'
+// 着色器源码抽离到独立 .vert/.frag 文件（本目录 shaders/ 下），
+// ?raw 由 Vite 内置支持：编译期把文件内容作为字符串内联，零运行时开销
+import triangleVert from './shaders/triangle.vert?raw'
+import triangleFrag from './shaders/triangle.frag?raw'
 
-const openReadmeInEditor = () => fetch('/__open-in-editor?file=README.md')
+const mountRef = ref(null)
+
+let renderer, mesh
+
+onMounted(() => {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+  renderer.setSize(800, 800 * 0.618)
+  mountRef.value.appendChild(renderer.domElement)
+
+  const scene = new THREE.Scene()
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+
+  // 三角形顶点: (0,0), (0.5,0), (0,1)
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0.5, 0, 0, 0, 1, 0], 3))
+
+  mesh = new THREE.Mesh(geometry, new THREE.ShaderMaterial({ vertexShader: triangleVert, fragmentShader: triangleFrag }))
+  scene.add(mesh)
+
+  renderer.render(scene, camera)
+})
+
+onBeforeUnmount(() => {
+  renderer?.dispose()
+  mesh?.geometry?.dispose()
+  mesh?.material?.dispose()
+  renderer?.domElement?.remove()
+})
 </script>
 
 <template>
-  <WelcomeItem>
-    <template #icon>
-      <DocumentationIcon />
-    </template>
-    <template #heading>Documentation</template>
-
-    Vue’s
-    <a href="https://vuejs.org/" target="_blank" rel="noopener">official documentation</a>
-    provides you with all information you need to get started.
-  </WelcomeItem>
-
-  <WelcomeItem>
-    <template #icon>
-      <ToolingIcon />
-    </template>
-    <template #heading>Tooling</template>
-
-    This project is served and bundled with
-    <a href="https://vite.dev/guide/features.html" target="_blank" rel="noopener">Vite</a>. The
-    recommended IDE setup is
-    <a href="https://code.visualstudio.com/" target="_blank" rel="noopener">VSCode</a>
-    +
-    <a href="https://github.com/vuejs/language-tools" target="_blank" rel="noopener"
-      >Vue - Official</a
-    >. If you need to test your components and web pages, check out
-    <a href="https://vitest.dev/" target="_blank" rel="noopener">Vitest</a>
-    and
-    <a href="https://www.cypress.io/" target="_blank" rel="noopener">Cypress</a>
-    /
-    <a href="https://playwright.dev/" target="_blank" rel="noopener">Playwright</a>.
-
-    <br />
-
-    More instructions are available in
-    <a href="javascript:void(0)" @click="openReadmeInEditor"><code>README.md</code></a
-    >.
-  </WelcomeItem>
-
-  <WelcomeItem>
-    <template #icon>
-      <EcosystemIcon />
-    </template>
-    <template #heading>Ecosystem</template>
-
-    Get official tools and libraries for your project:
-    <a href="https://pinia.vuejs.org/" target="_blank" rel="noopener">Pinia</a>,
-    <a href="https://router.vuejs.org/" target="_blank" rel="noopener">Vue Router</a>,
-    <a href="https://test-utils.vuejs.org/" target="_blank" rel="noopener">Vue Test Utils</a>, and
-    <a href="https://github.com/vuejs/devtools" target="_blank" rel="noopener">Vue Dev Tools</a>. If
-    you need more resources, we suggest paying
-    <a href="https://github.com/vuejs/awesome-vue" target="_blank" rel="noopener">Awesome Vue</a>
-    a visit.
-  </WelcomeItem>
-
-  <WelcomeItem>
-    <template #icon>
-      <CommunityIcon />
-    </template>
-    <template #heading>Community</template>
-
-    Got stuck? Ask your question on
-    <a href="https://chat.vuejs.org" target="_blank" rel="noopener">Vue Land</a>
-    (our official Discord server), or
-    <a href="https://stackoverflow.com/questions/tagged/vue.js" target="_blank" rel="noopener"
-      >StackOverflow</a
-    >. You should also follow the official
-    <a href="https://bsky.app/profile/vuejs.org" target="_blank" rel="noopener">@vuejs.org</a>
-    Bluesky account or the
-    <a href="https://x.com/vuejs" target="_blank" rel="noopener">@vuejs</a>
-    X account for latest news in the Vue world.
-  </WelcomeItem>
-
-  <WelcomeItem>
-    <template #icon>
-      <SupportIcon />
-    </template>
-    <template #heading>Support Vue</template>
-
-    As an independent project, Vue relies on community backing for its sustainability. You can help
-    us by
-    <a href="https://vuejs.org/sponsor/" target="_blank" rel="noopener">becoming a sponsor</a>.
-  </WelcomeItem>
+  <section class="bos-chapter">
+    <h2>最简 Shader 模板 — 黄色三角形</h2>
+    <div ref="mountRef" class="shader-canvas" />
+  </section>
 </template>
+
+<style scoped>
+.bos-chapter {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.shader-canvas {
+  width: 800px;
+  height: 494.4px; /* 800 * 0.618 */
+  max-width: 100%;
+  border: 1px solid #ccc;
+  overflow: hidden;
+}
+
+.shader-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+</style>
