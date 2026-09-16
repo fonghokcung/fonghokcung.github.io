@@ -1,12 +1,5 @@
 <template>
   <div class="dtwin">
-    <div class="header">
-      <span class="title">车间数字孪生 · InstancedMesh × 500</span>
-      <span class="sub">
-        俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 < 10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。
-      </span>
-    </div>
-
     <!-- three.js 渲染容器；场景逻辑全部在 DTwinScene.js -->
     <div ref="stageRef" class="stage">
       <!-- HUD：楼层切换 + 实时渲染指标 -->
@@ -29,9 +22,7 @@
       <div v-if="panel.visible" class="panel">
         <div class="panel-head">
           <span class="dev-id">{{ panel.device.id }}</span>
-          <span class="dev-status" :class="'s' + panel.device.status">{{
-            statusText(panel.device.status)
-          }}</span>
+          <span class="dev-status" :class="'s' + panel.device.status">{{ statusText(panel.device.status) }}</span>
         </div>
         <div class="row" v-for="r in rows" :key="r.key">
           <span class="label">{{ r.label }}</span>
@@ -42,9 +33,15 @@
       <div v-else class="empty-tip">点击设备查看数据 · 双击相机聚焦</div>
     </div>
 
-    <div class="hint">
-      左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层
-    </div>
+    <!-- 右侧文案说明 -->
+    <section class="doc">
+      <h2 class="doc-title">车间数字孪生 · InstancedMesh × 500</h2>
+      <p class="doc-sub">
+        俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 &lt;
+        10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。
+      </p>
+      <p class="doc-hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层</p>
+    </section>
   </div>
 </template>
 
@@ -149,9 +146,9 @@ onUnmounted(dispose)
 
 <style scoped>
 .dtwin {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: flex; /* 横向：左 canvas，右文案 */
+  gap: 16px;
+  align-items: stretch;
   box-sizing: border-box;
   /* App.vue 头部导航 + RouterView 边框占掉约 26px，其余给页面；
      舞台用 flex:1 吃掉剩余空间，杜绝纵向滚动条 */
@@ -161,22 +158,33 @@ onUnmounted(dispose)
   background-color: #f4efe4;
 }
 
-.header {
-  width: 100%;
+/* ---- 右侧文案说明 ---- */
+.doc {
+  width: 260px;
+  flex-shrink: 0;
+  padding: 12px;
+  border-left: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.title {
-  display: block;
-  font-size: 17px;
+.doc-title {
+  font-size: 15px;
   font-weight: bold;
   color: #1f6feb;
 }
 
-.sub {
-  display: block;
-  margin-top: 5px;
+.doc-sub {
+  margin-top: 8px;
   font-size: 11px;
-  line-height: 1.6;
+  line-height: 1.7;
+  color: #8a7f66;
+}
+
+.doc-hint {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.12);
+  font-size: 10px;
+  line-height: 1.8;
   color: #8a7f66;
 }
 
@@ -315,13 +323,5 @@ onUnmounted(dispose)
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
-}
-
-.hint {
-  margin-top: 10px;
-  font-size: 10px;
-  line-height: 1.6;
-  color: #8a7f66;
-  text-align: center;
 }
 </style>

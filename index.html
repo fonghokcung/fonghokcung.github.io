@@ -1,10 +1,26 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="">
   <head>
-    <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/favicon.ico" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Vite App</title>
+    <script>
+      // Vue DevTools 悬浮球固定到左下角：插件本身没有位置配置项，
+      // 位置由其 localStorage 状态 __vue-devtools-frame-state__ 控制
+      // （默认 position:"bottom", left:50 → 下方中央）。内联脚本先于
+      // 插件 overlay 模块执行，改写后即生效；保留其余已存字段。
+      try {
+        var key = '__vue-devtools-frame-state__'
+        var state = {}
+        try {
+          state = JSON.parse(localStorage.getItem(key)) || {}
+        } catch (e) {}
+        state.position = 'bottom'
+        state.left = 3
+        localStorage.setItem(key, JSON.stringify(state))
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

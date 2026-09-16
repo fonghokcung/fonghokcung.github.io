@@ -30,11 +30,7 @@ const GAP = 2.3 // 设备间距（米）
 export const FLOORS = ['1F', '2F', '3F']
 
 // 设备状态：0 运行 / 1 告警 / 2 停机
-const STATUS_COLORS = [
-  new THREE.Color('#3fae6a'),
-  new THREE.Color('#e2483d'),
-  new THREE.Color('#9aa0a6'),
-]
+const STATUS_COLORS = [new THREE.Color('#3fae6a'), new THREE.Color('#e2483d'), new THREE.Color('#9aa0a6')]
 
 /* ===================== 工厂函数 ===================== */
 export function createWorkshopScene(container, hooks = {}) {
@@ -139,12 +135,7 @@ export function createWorkshopScene(container, hooks = {}) {
     geometry.setAttribute('aPhase', aPhase)
 
     // 相机：初始高高在上俯视车间地面
-    camera = new THREE.PerspectiveCamera(
-      55,
-      container.clientWidth / container.clientHeight,
-      0.1,
-      300,
-    )
+    camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 300)
     camera.position.copy(HOME_POS)
 
     scene = new THREE.Scene()
@@ -185,10 +176,7 @@ export function createWorkshopScene(container, hooks = {}) {
 
     // 选中描边：EdgesGeometry 线框，比 OutlinePass 后处理便宜得多
     const eg = new THREE.BoxGeometry(1.5 + 0.16, machineHeight + 0.16, 1.0 + 0.16)
-    edgesMesh = new THREE.LineSegments(
-      new THREE.EdgesGeometry(eg),
-      new THREE.LineBasicMaterial({ color: '#ffb020' }),
-    )
+    edgesMesh = new THREE.LineSegments(new THREE.EdgesGeometry(eg), new THREE.LineBasicMaterial({ color: '#ffb020' }))
     eg.dispose()
     edgesMesh.visible = false
     scene.add(edgesMesh)
