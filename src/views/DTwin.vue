@@ -33,15 +33,38 @@
       <div v-else class="empty-tip">点击设备查看数据 · 双击相机聚焦</div>
     </div>
 
-    <!-- 右侧文案说明 -->
-    <section class="txt">
-      <h2 class="txt-title">车间数字孪生 · InstancedMesh × 500</h2>
+    <!-- 右侧文案说明（可通过圆形按钮收起/展开） -->
+    <section class="txt" :class="{ collapsed: txtCollapsed }">
+      <h2 class="txt-title">车间数字孪生</h2>
       <p class="txt-sub">
         俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 &lt;
         10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。
       </p>
       <p class="txt-hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层</p>
     </section>
+
+    <!-- 收起/展开按钮：展开时箭头朝右(点击收起)，收起时箭头朝左(点击展开) -->
+    <button
+      class="txt-toggle"
+      :class="{ collapsed: txtCollapsed }"
+      :title="txtCollapsed ? '展开说明' : '收起说明'"
+      @click="txtCollapsed = !txtCollapsed"
+    >
+      <!-- lucide move-right 图标：收起态用 transform 镜像成朝左 -->
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M18 8L22 12L18 16"></path>
+        <path d="M2 12H22"></path>
+      </svg>
+    </button>
   </div>
 </template>
 
@@ -78,6 +101,9 @@ const panel = ref({
 })
 
 const stageRef = ref(null)
+
+// 右侧文案面板收起/展开
+const txtCollapsed = ref(false)
 
 function statusText(s) {
   return STATUS_TEXT[s] ?? '未知'
@@ -146,10 +172,9 @@ onUnmounted(dispose)
 
 <style scoped>
 .dtwin {
+  position: relative; /* 收起/展开按钮以此为锚点 */
   display: flex; /* 横向：左 canvas，右文案 */
-  gap: 16px;
   align-items: stretch;
-  box-sizing: border-box;
   /* 导航是左侧边栏不占纵向空间，直接铺满整屏；
      舞台用 flex:1 吃掉剩余空间，杜绝纵向滚动条 */
   height: 100vh;
@@ -161,9 +186,19 @@ onUnmounted(dispose)
   width: 260px;
   flex-shrink: 0;
   padding: 12px;
-  border-left: 1px solid rgba(0, 0, 0, 0.08);
-  background: #3e98ff;
+  background: var(--color-bg);
   color: #000;
+  overflow: hidden;
+  border-left: 2px solid #333;
+  transition:
+    width 0.25s ease,
+    padding 0.25s ease;
+}
+
+/* 收起态：宽度收到 0（按钮浮在场景上，不随布局挤压） */
+.txt.collapsed {
+  width: 0;
+  padding: 12px 0;
 }
 
 .txt-title {
@@ -186,6 +221,47 @@ onUnmounted(dispose)
   font-size: 10px;
   line-height: 1.8;
   color: #000;
+}
+
+/* ---- 收起/展开圆形按钮：骑在文案面板左边缘 ---- */
+.txt-toggle {
+  position: absolute;
+  top: 50%;
+  right: 260px; /* 展开态：260px = 面板宽度，即面板左缘 */
+  z-index: 30;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+  line-height: 24px;
+  text-align: center;
+  color: #333;
+  background: rgba(255, 255, 255, 1);
+  border: 2px solid #333;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transform: translate(50%, -50%); /* 半个身位压在场景上 */
+  transition:
+    right 0.25s ease,
+    transform 0.25s ease;
+}
+
+/* 收起态：面板宽度为 0，按钮整体收进右缘内保持可见 */
+.txt-toggle.collapsed {
+  right: 0;
+  transform: translate(0, -50%);
+}
+
+/* 图标：默认箭头朝右；收起态 scaleX(-1) 镜像成朝左，带动画 */
+.txt-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.25s ease;
+}
+
+.txt-toggle.collapsed svg {
+  transform: scaleX(-1);
 }
 
 .stage {
@@ -226,9 +302,7 @@ onUnmounted(dispose)
 }
 
 .floor-btn.active {
-  color: #fff;
-  background: #1f6feb;
-  border-color: #1f6feb;
+  background: var(--color-primary);
 }
 
 .metrics {
@@ -320,5 +394,9 @@ onUnmounted(dispose)
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
+}
+.dtwin :deep() {
+  canvas[data-engine] {
+  }
 }
 </style>

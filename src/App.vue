@@ -35,7 +35,8 @@ import { RouterLink, RouterView } from 'vue-router'
 
 .theNav {
   width: 200px;
-  border-right: 1px solid rgba(0, 0, 0, 0.06);
+  background: var(--color-bg-dark);
+  color: white;
 }
 
 nav {
@@ -49,11 +50,10 @@ nav a {
   display: block;
   padding: 10px 16px;
   text-decoration: none;
-  color: oklch(0.145 0.01 148); /* --fresh-nav-foreground */
   font-size: 14px;
   font-weight: 500;
-  border-radius: 8px;
   transition: color 0.3s ease;
+  color: white;
 }
 
 nav a.router-link-active {

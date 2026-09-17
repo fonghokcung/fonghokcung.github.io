@@ -23,11 +23,15 @@ import deviceVert from './shaders/device.vert?raw'
 import deviceFrag from './shaders/device.frag?raw'
 
 /* ===================== 场景规模常量 ===================== */
-const COUNT = 500 // 每层 500 台设备（硬指标：办公室笔记本 60fps）
 const COLS = 25
 const ROWS = 20
+const CAPACITY = COLS * ROWS // InstancedMesh 按最大容量 500 建，每层实画 FLOOR_COUNTS[idx] 台
+const FLOOR_COUNTS = [440, 469, 480] // 每层设备数
 const GAP = 2.3 // 设备间距（米）
 export const FLOORS = ['1F', '2F', '3F']
+
+// 每层地板色：切换楼层时地面颜色随之变化，强化「换了车间」的感知
+const FLOOR_COLORS = ['#36340b', '#360b0d', '#0b0d36']
 
 // 设备状态：0 运行 / 1 告警 / 2 停机
 const STATUS_COLORS = [new THREE.Color('#3fae6a'), new THREE.Color('#e2483d'), new THREE.Color('#9aa0a6')]
@@ -40,8 +44,9 @@ export function createWorkshopScene(container, hooks = {}) {
   let camera = null
   let controls = null
   let stats = null
-  let mesh = null // 承载 500 台设备的 InstancedMesh
+  let mesh = null // 承载全部设备的 InstancedMesh（容量 500，每层实画 FLOOR_COUNTS 台）
   let deviceMaterial = null
+  let floorMaterial = null // 地面材质：切层时改 color
   let edgesMesh = null // 选中高亮描边（单个 LineSegments，额外仅 1 drawcall）
   let clock = null // THREE.Timer：r185+ 官方推荐的时间源
   let raycaster = null
@@ -55,7 +60,8 @@ export function createWorkshopScene(container, hooks = {}) {
   let rafId = 0
   let disposed = false
   let lastMetricsAt = 0
-  // 初始机位（单一事实来源）：init 里摆相机用，切楼后 flyHome 回位也用它
+  let resizeObserver = null // 监听容器尺寸（面板收起/展开不触发 window.resize）
+  // 初始机位（单一事实来源）：init 里摆相机用，切楼后相机直接回位也用它
   const HOME_POS = new THREE.Vector3(0, 46, 30)
   const HOME_TARGET = new THREE.Vector3(0, 0, 0)
   // 每场景独立的 tween Group：不用库的 mainGroup 全局组，
@@ -64,12 +70,12 @@ export function createWorkshopScene(container, hooks = {}) {
   let flyTween = null // 相机飞行补间（双击触发，用户拖动时 stop）
   let floorIdx = 0
 
-  // 设备业务数据：TypedArray 纯数组，与 three 对象一样不进响应式系统
-  const devStatus = new Uint8Array(COUNT)
-  const devTemp = new Float32Array(COUNT)
-  const devRpm = new Float32Array(COUNT)
-  const devVib = new Float32Array(COUNT)
-  const devOut = new Float32Array(COUNT)
+  // 设备业务数据：TypedArray 纯数组（按容量 500 建），与 three 对象一样不进响应式系统
+  const devStatus = new Uint8Array(CAPACITY)
+  const devTemp = new Float32Array(CAPACITY)
+  const devRpm = new Float32Array(CAPACITY)
+  const devVib = new Float32Array(CAPACITY)
+  const devOut = new Float32Array(CAPACITY)
 
   /* ===================== 资产管线 =====================
    * 约定：用 gltf-transform 把免费模型压到 2MB 内再放进来
@@ -125,11 +131,11 @@ export function createWorkshopScene(container, hooks = {}) {
     geometry.computeBoundingBox()
     machineHeight = geometry.boundingBox.max.y
 
-    // —— 逐实例 attribute：随几何体走，一个 buffer 搞定 500 台 ——
-    const aAlarm = new THREE.InstancedBufferAttribute(new Float32Array(COUNT), 1) // 1=告警（itemSize=1 → 只许 setX）
-    const aPhase = new THREE.InstancedBufferAttribute(new Float32Array(COUNT), 1)
-    for (let i = 0; i < COUNT; i++) {
-      aPhase.setX(i, Math.random() * Math.PI * 2) // 随机相位：500 台呼吸错峰，不同步齐闪
+    // —— 逐实例 attribute：随几何体走，一个 buffer 搞定全部容量 ——
+    const aAlarm = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1) // 1=告警（itemSize=1 → 只许 setX）
+    const aPhase = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1)
+    for (let i = 0; i < CAPACITY; i++) {
+      aPhase.setX(i, Math.random() * Math.PI * 2) // 随机相位：呼吸错峰，不同步齐闪
     }
     geometry.setAttribute('aAlarm', aAlarm)
     geometry.setAttribute('aPhase', aPhase)
@@ -147,9 +153,10 @@ export function createWorkshopScene(container, hooks = {}) {
     dir.position.set(20, 40, 15)
     scene.add(dir)
 
-    // 车间地面 + 网格
+    // 车间地面 + 网格（材质颜色在 regenerate 里随楼层更新）
     const floorGeo = new THREE.PlaneGeometry(84, 66).rotateX(-Math.PI / 2)
-    scene.add(new THREE.Mesh(floorGeo, new THREE.MeshBasicMaterial({ color: '#080B08' })))
+    floorMaterial = new THREE.MeshBasicMaterial({ color: FLOOR_COLORS[0] })
+    scene.add(new THREE.Mesh(floorGeo, floorMaterial))
     const grid = new THREE.GridHelper(66, 30, 0x8a7f66, 0xdcd4c0)
     grid.position.y = -0.05
     scene.add(grid)
@@ -169,8 +176,9 @@ export function createWorkshopScene(container, hooks = {}) {
       fragmentShader: deviceFrag,
     })
 
-    // —— 500 台设备，一个 InstancedMesh，1 个 drawcall ——
-    mesh = new THREE.InstancedMesh(geometry, deviceMaterial, COUNT)
+    // —— 全部设备，一个 InstancedMesh，1 个 drawcall ——
+    // 按容量 500 建实例 buffer；每层实画台数由 regenerate 里 mesh.count 控制
+    mesh = new THREE.InstancedMesh(geometry, deviceMaterial, CAPACITY)
     // 视锥剔除：r158+ InstancedMesh 会聚合全部实例矩阵算包围球，整批剔除；
     // 注意剔除粒度是「整批」——单个实例级别要剔除得拆多 mesh 或自己写判定
     mesh.frustumCulled = true
@@ -219,6 +227,9 @@ export function createWorkshopScene(container, hooks = {}) {
     renderer.domElement.addEventListener('pointerup', onPointerUp)
     renderer.domElement.addEventListener('dblclick', onDblClick)
     window.addEventListener('resize', onResize)
+    // ResizeObserver 监听容器本身：侧栏收起/展开等布局变化都能感知
+    resizeObserver = new ResizeObserver(onResize)
+    resizeObserver.observe(container)
 
     regenerate(0)
     onResize()
@@ -238,29 +249,52 @@ export function createWorkshopScene(container, hooks = {}) {
     }
   }
 
-  // 生成一层 500 台的 GPU 侧状态：矩阵 / 颜色 / 告警标记
+  // 生成一层的 GPU 侧状态：矩阵 / 颜色 / 告警标记
   // 关键：复用同一份 instance buffer 原地改写，不 new 不 dispose —— 切楼零分配
+  // 布局：25×20 网格，每行随机缺失 0~5 个位置（可复现伪随机，切楼来回布局一致）；
+  // mesh.count = 本层实际台数，GPU 只画这些实例，容量 buffer 其余部分不参与渲染
   function regenerate(idx) {
     const rand = mulberry32(1000 + idx * 77)
-    for (let i = 0; i < COUNT; i++) {
-      const col = i % COLS
-      const row = (i / COLS) | 0
-      position.set((col - (COLS - 1) / 2) * GAP, 0, (row - (ROWS - 1) / 2) * GAP)
-      quaternion.identity()
-      scale.set(1, 1, 1)
-      matrix.compose(position, quaternion, scale)
-      mesh.setMatrixAt(i, matrix)
+    const count = FLOOR_COUNTS[idx]
+    // 总缺口 = 容量 - 本层台数，需精确分配到 20 行，且每行缺 0~5
+    let remaining = CAPACITY - count
+    let i = 0 // 实例写入游标
+    for (let row = 0; row < ROWS; row++) {
+      // 本行可缺范围：上限受「每行最多 5」和「剩余总量」约束；
+      // 下限保证后面剩下的行还有容量接盘（5/行）
+      const maxMiss = Math.min(5, remaining)
+      const minMiss = Math.max(0, remaining - 5 * (ROWS - 1 - row))
+      const missing = minMiss + ((rand() * (maxMiss - minMiss + 1)) | 0)
+      remaining -= missing
+      const present = COLS - missing
+      // 在 25 个槽位里挑 present 个位置：缺失位置随机打散，而不是全堆行尾
+      const slots = Array.from({ length: COLS }, (_, c) => c)
+      for (let m = COLS - 1; m > 0; m--) {
+        const j = (rand() * (m + 1)) | 0
+        ;[slots[m], slots[j]] = [slots[j], slots[m]] // Fisher–Yates 洗牌
+      }
+      const kept = slots.slice(0, present).sort((a, b) => a - b) // 保留的列号，升序摆放
+      for (const col of kept) {
+        position.set((col - (COLS - 1) / 2) * GAP, 0, (row - (ROWS - 1) / 2) * GAP)
+        quaternion.identity()
+        scale.set(1, 1, 1)
+        matrix.compose(position, quaternion, scale)
+        mesh.setMatrixAt(i, matrix)
 
-      const r = rand()
-      // 状态分布（r ∈ [0,1) 均匀随机，用区间宽度控制占比）：
-      //   [0, 0.045)  → 1 告警（约 4.5%）
-      //   [0.045, 0.075) → 2 停机（约 3%）
-      //   [0.075, 1)  → 0 运行（其余约 92.5%）
-      const status = r < 0.045 ? 1 : r < 0.075 ? 2 : 0
-      devStatus[i] = status
-      mesh.setColorAt(i, STATUS_COLORS[status])
-      mesh.geometry.getAttribute('aAlarm').setX(i, status === 1 ? 1 : 0)
+        const r = rand()
+        // 状态分布（r ∈ [0,1) 均匀随机，用区间宽度控制占比）：
+        //   [0, 0.045)  → 1 告警（约 4.5%）
+        //   [0.045, 0.075) → 2 停机（约 3%）
+        //   [0.075, 1)  → 0 运行（其余约 92.5%）
+        const status = r < 0.045 ? 1 : r < 0.075 ? 2 : 0
+        devStatus[i] = status
+        mesh.setColorAt(i, STATUS_COLORS[status])
+        mesh.geometry.getAttribute('aAlarm').setX(i, status === 1 ? 1 : 0)
+        i++
+      }
     }
+    if (i !== count) console.warn(`regenerate: 写入 ${i} 台 ≠ 预期 ${count} 台`) // 布局参数改动时的防呆
+    mesh.count = count // 实画台数（< 容量 500），其余 buffer 区间不渲染
     // 改完 buffer 必须手动置脏，CPU → GPU 才会重新上传
     mesh.instanceMatrix.needsUpdate = true
     mesh.instanceColor.needsUpdate = true
@@ -268,16 +302,19 @@ export function createWorkshopScene(container, hooks = {}) {
     // 矩阵变了包围球要重算，否则视锥剔除拿旧球误判（切楼后设备"消失"多半是这）
     mesh.computeBoundingSphere()
 
+    // 地板颜色随楼层切换（零分配：只改已有材质的 color）
+    floorMaterial.color.set(FLOOR_COLORS[idx])
+
     // 业务数据（CPU 侧，面板显示用）与 mesh 状态分开生成
     resetDeviceData(idx)
   }
 
-  // 填充一层 500 台的业务初值（温度/转速/振动/产量）
+  // 填充一层的业务初值（温度/转速/振动/产量），按容量 500 建、切层时全量重写
   // 与 regenerate 用不同的种子流：布局流和数据流互不干扰，
   // 改布局不会牵动数据，反之亦然。依赖 devStatus（regenerate 先跑）
   function resetDeviceData(idx) {
     const rand = mulberry32(9000 + idx * 77)
-    for (let i = 0; i < COUNT; i++) {
+    for (let i = 0; i < CAPACITY; i++) {
       const status = devStatus[i]
       // 初值按状态落入合理区间，面板数据与设备外观互相印证：
       devTemp[i] = status === 1 ? 68 + rand() * 20 : 36 + rand() * 16 // 告警过热 68~88°C / 正常 36~52°C
@@ -296,25 +333,11 @@ export function createWorkshopScene(container, hooks = {}) {
       flyTween = null
     }
     regenerate(idx)
-    flyHome() // 换层 = 换了个新车间，相机平滑回到初始俯瞰位（旧聚焦目标已无意义）
-  }
-
-  // 相机平滑飞回初始俯瞰位（HOME_POS/HOME_TARGET 是单一事实来源）
-  function flyHome() {
-    const progress = { k: 0 }
-    const fromPos = camera.position.clone()
-    const fromTarget = controls.target.clone()
-    flyTween = new Tween(progress, tweenGroup)
-      .to({ k: 1 }, 900)
-      .easing(Easing.Cubic.InOut)
-      .onUpdate(() => {
-        camera.position.lerpVectors(fromPos, HOME_POS, progress.k)
-        controls.target.lerpVectors(fromTarget, HOME_TARGET, progress.k)
-      })
-      .onComplete(() => {
-        flyTween = null
-      })
-      .start()
+    // 换层 = 换了个新车间：相机瞬间回到初始俯瞰位，不做飞行动画——
+    // 平滑过渡会让用户误以为还是原来那个车间
+    camera.position.copy(HOME_POS)
+    controls.target.copy(HOME_TARGET)
+    controls.update()
   }
 
   /* ===================== 拾取与选中 ===================== */
@@ -478,6 +501,8 @@ export function createWorkshopScene(container, hooks = {}) {
     tweenGroup.removeAll() // 补间整组摘除（比逐个 stop 稳妥）
 
     window.removeEventListener('resize', onResize)
+    resizeObserver?.disconnect()
+    resizeObserver = null
     if (renderer) {
       renderer.domElement.removeEventListener('pointerdown', onPointerDown)
       renderer.domElement.removeEventListener('pointerup', onPointerUp)
@@ -509,6 +534,7 @@ export function createWorkshopScene(container, hooks = {}) {
     controls = null
     mesh = null
     deviceMaterial = null
+    floorMaterial = null
     edgesMesh = null
     raycaster = null
   }

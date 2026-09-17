@@ -1,9 +1,13 @@
 /* color palette */
 :root {
   /* #FBD509 */
-  --color-primary: oklch(0.88 0.18 96);
-  --color-bg: #f8f8f6;
-  --color-bg-dark: #080b08;
+  --color-primary: hsl(51 97% 51%);
+  --color2: hsl(212 100% 62%);
+  --color3: hsl(145 55% 56%);
+  --color-bg: hsl(60 12% 97%);
+  --color-bg-dark: hsl(120 16% 4%);
+  --color-border: hsl(60 3% 87%);
+  --color-border-indarkbg: hsl(130 6% 18%);
 }
 
 /* semantic color variables for this project */
@@ -21,8 +25,8 @@
 
 body {
   min-height: 100vh;
-  color: var(--color-text);
-  background: var(--color-background);
+  color: black;
+  background: white;
   transition:
     color 0.5s,
     background-color 0.5s;
