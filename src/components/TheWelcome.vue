@@ -8,7 +8,7 @@ import triangleFrag from './shaders/triangle.frag?raw'
 
 const mountRef = ref(null)
 
-let renderer, mesh
+let renderer, mesh, rafId, timer
 
 onMounted(() => {
   renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
@@ -17,18 +17,47 @@ onMounted(() => {
 
   const scene = new THREE.Scene()
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
+  // THREE.Timer：r185+ 官方推荐时间源（Clock 的替代品）
+  // connect(document) 接入 Page Visibility API：切走标签页暂停计时，回来不跳帧
+  timer = new THREE.Timer()
+  timer.connect(document)
 
-  // 三角形顶点: (0,0), (0.5,0), (0,1)
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0.5, 0, 0, 0, 1, 0], 3))
+  // 全屏四边形：PlaneGeometry(2,2) 坐标恰好 [-1,1]²，直通裁剪空间铺满视口；
+  // 自带 position/uv/index 完整 attribute，uv 可直接在顶点着色器里消费
+  const geometry = new THREE.PlaneGeometry(2, 2)
 
-  mesh = new THREE.Mesh(geometry, new THREE.ShaderMaterial({ vertexShader: triangleVert, fragmentShader: triangleFrag }))
+  /**
+   * uniform: u_time
+   * 1.在ShaderMaterial中定义
+   * 2.在timer中更新
+   * 3.src\components\shaders\triangle.frag中使用sin,令其在0-1变化并赋值给r通道
+   */
+  mesh = new THREE.Mesh(
+    geometry,
+    new THREE.ShaderMaterial({
+      vertexShader: triangleVert,
+      fragmentShader: triangleFrag,
+      uniforms: {
+        u_time: {
+          value: 0.0,
+        },
+      },
+    }),
+  )
   scene.add(mesh)
 
-  renderer.render(scene, camera)
+  // 渲染循环：每帧先 update() 推进时间，再把运行秒数写进 u_time 驱动颜色动画
+  function loop() {
+    rafId = requestAnimationFrame(loop)
+    timer.update() // Timer 必须显式 update 才推进（区别于 Clock 的 getDelta 自推进）
+    mesh.material.uniforms.u_time.value = timer.getElapsed()
+    renderer.render(scene, camera)
+  }
+  loop()
 })
 
 onBeforeUnmount(() => {
+  cancelAnimationFrame(rafId)
   renderer?.dispose()
   mesh?.geometry?.dispose()
   mesh?.material?.dispose()
@@ -38,7 +67,7 @@ onBeforeUnmount(() => {
 
 <template>
   <section class="bos-chapter">
-    <h2>最简 Shader 模板 — 黄色三角形</h2>
+    <h2>Shader</h2>
     <div ref="mountRef" class="shader-canvas" />
   </section>
 </template>
