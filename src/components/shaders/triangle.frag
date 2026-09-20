@@ -17,10 +17,13 @@ void main() {
 
   float d = length(c); // 到圆心的真实距离
 
-  // 红底黑洞版：step(0.4, d) 圆外=1（红底）、圆内=0（黑洞）—— 原始写法即为所需
-  // float mask = step(0.4, d);
-  // 抗锯齿版（洞边缘羽化）：
-  float mask = smoothstep(0.39, 0.4, d);
+  // 红底黑洞版：step(半径随机, d) 圆外=1（红底）、圆内=0（黑洞）
+  // GLSL 无随机函数，惯用 hash：sin 大数取小数——确定性伪随机（同帧内每个像素拿到同一次采样）
+  float rand = fract(sin(12.9898 * u_time) * 43758.5453); // u_time 驱动：每秒换一个新半径
+  float r = mix(0.15, 0.45, rand); // 半径在 0.15~0.45 间随机（0.45 是修正后可见上限）
+  float mask = step(r, d);
+  // 抗锯齿版（洞边缘羽化 0.02）：
+  // float mask = smoothstep(r - 0.01, r + 0.01, d);
 
   gl_FragColor = vec4(mask, 0.0, 0.0, 1.0);
 }
