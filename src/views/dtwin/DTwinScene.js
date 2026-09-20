@@ -60,7 +60,6 @@ export function createWorkshopScene(container, hooks = {}) {
   let rafId = 0;
   let disposed = false;
   let lastMetricsAt = 0;
-  let resizeObserver = null; // 监听容器尺寸（面板收起/展开不触发 window.resize）
   // 初始机位（单一事实来源）：init 里摆相机用，切楼后相机直接回位也用它
   const HOME_POS = new THREE.Vector3(0, 46, 30);
   const HOME_TARGET = new THREE.Vector3(0, 0, 0);
@@ -227,9 +226,8 @@ export function createWorkshopScene(container, hooks = {}) {
     renderer.domElement.addEventListener('pointerup', onPointerUp);
     renderer.domElement.addEventListener('dblclick', onDblClick);
     window.addEventListener('resize', onResize);
-    // ResizeObserver 监听容器本身：侧栏收起/展开等布局变化都能感知
-    resizeObserver = new ResizeObserver(onResize);
-    resizeObserver.observe(container);
+    // 舞台尺寸变化的另一来源（txt 收起/展开的布局变化）由 ThreeLayout 的
+    // ResizeObserver 感知，页面通过返回接口的 onStageResize() 转发进来
 
     regenerate(0);
     onResize();
@@ -501,8 +499,6 @@ export function createWorkshopScene(container, hooks = {}) {
     tweenGroup.removeAll(); // 补间整组摘除（比逐个 stop 稳妥）
 
     window.removeEventListener('resize', onResize);
-    resizeObserver?.disconnect();
-    resizeObserver = null;
     if (renderer) {
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
       renderer.domElement.removeEventListener('pointerup', onPointerUp);
@@ -545,6 +541,7 @@ export function createWorkshopScene(container, hooks = {}) {
   return {
     floorCount: FLOORS.length,
     switchFloor,
+    onStageResize: onResize,
     pollSelected,
     dispose,
   };

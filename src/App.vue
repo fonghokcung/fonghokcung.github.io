@@ -1,5 +1,8 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router';
+import { RouterLink, RouterView, useRouter } from 'vue-router';
+
+const router = useRouter();
+const routes = router.options.routes;
 </script>
 
 <template>
@@ -7,16 +10,10 @@ import { RouterLink, RouterView } from 'vue-router';
     <header class="theNav">
       <div class="wrapper">
         <nav>
-          <RouterLink to="/" aria-label="Home">
+          <RouterLink v-for="route in routes" :key="route.name" :to="route.path" :aria-label="route.zh">
             <span class="fresh-rolling-text" aria-hidden="true">
-              <span class="fresh-rolling-text-copy">Home</span>
-              <span class="fresh-rolling-text-copy fresh-rolling-text-copy--incoming">Home</span>
-            </span>
-          </RouterLink>
-          <RouterLink to="/dtwin" aria-label="DTwin">
-            <span class="fresh-rolling-text" aria-hidden="true">
-              <span class="fresh-rolling-text-copy">DTwin</span>
-              <span class="fresh-rolling-text-copy fresh-rolling-text-copy--incoming">DTwin</span>
+              <span class="fresh-rolling-text-copy">{{ route.zh }}</span>
+              <span class="fresh-rolling-text-copy fresh-rolling-text-copy--incoming">{{ route.zh }}</span>
             </span>
           </RouterLink>
         </nav>

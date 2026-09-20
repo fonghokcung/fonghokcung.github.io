@@ -2,5 +2,14 @@
   "$schema": "https://json.schemastore.org/prettierrc",
   "semi": true,
   "singleQuote": true,
-  "printWidth": 130
+  "printWidth": 130,
+  "plugins": ["prettier-plugin-glsl"],
+  "overrides": [
+    {
+      "files": ["*.vert", "*.frag"],
+      "options": {
+        "parser": "glsl-parser"
+      }
+    }
+  ]
 }

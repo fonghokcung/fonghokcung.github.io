@@ -11,12 +11,22 @@ export default defineConfig([
     files: ['**/*.{vue,js,mjs,jsx}'],
   },
 
-  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**']),
+  globalIgnores(['**/dist/**', '**/dist-ssr/**', '**/coverage/**', 'scripts/**']),
 
   {
     languageOptions: {
       globals: {
         ...globals.browser,
+      },
+    },
+  },
+
+  {
+    // 一次性 Node 运维脚本：允许 Node 全局（process 等）
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        ...globals.node,
       },
     },
   },

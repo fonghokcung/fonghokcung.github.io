@@ -1,8 +1,13 @@
 <template>
-  <div class="dtwin">
-    <!-- three.js 渲染容器；场景逻辑全部在 DTwinScene.js -->
-    <div ref="stageRef" class="stage">
-      <!-- HUD：楼层切换 + 实时渲染指标 -->
+  <ThreeLayout
+    ref="layoutRef"
+    txt-title="车间数字孪生"
+    txt-sub="俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 < 10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。"
+    txt-hint="左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层"
+    @stage-resize="onStageResize"
+  >
+    <!-- 舞台悬浮层：HUD 楼层切换 + 渲染指标 + 数据面板 -->
+    <template #stage>
       <div class="hud">
         <div class="floor-btns">
           <button
@@ -18,7 +23,6 @@
         <div class="metrics">drawcall {{ metrics.calls }} · 三角形 {{ metrics.tris }}</div>
       </div>
 
-      <!-- 右侧数据面板：点击设备弹出；数据 1s 轮询模拟 mock WebSocket -->
       <div v-if="panel.visible" class="panel">
         <div class="panel-head">
           <span class="dev-id">{{ panel.device.id }}</span>
@@ -31,52 +35,22 @@
         <div class="updated">更新于 {{ panel.updatedAt }} · 1s 轮询</div>
       </div>
       <div v-else class="empty-tip">点击设备查看数据 · 双击相机聚焦</div>
-    </div>
-
-    <!-- 右侧文案说明（可通过圆形按钮收起/展开） -->
-    <section class="txt" :class="{ collapsed: txtCollapsed }">
-      <h2 class="txt-title">车间数字孪生</h2>
-      <p class="txt-sub">
-        俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 &lt;
-        10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。
-      </p>
-      <p class="txt-hint">左键旋转 · 右键平移 · 滚轮缩放 · 点击选设备 · 双击飞过去 · 左上角切换楼层</p>
-    </section>
-
-    <!-- 收起/展开按钮：展开时箭头朝右(点击收起)，收起时箭头朝左(点击展开) -->
-    <button
-      class="txt-toggle"
-      :class="{ collapsed: txtCollapsed }"
-      :title="txtCollapsed ? '展开说明' : '收起说明'"
-      @click="txtCollapsed = !txtCollapsed"
-    >
-      <!-- lucide move-right 图标：收起态用 transform 镜像成朝左 -->
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M18 8L22 12L18 16"></path>
-        <path d="M2 12H22"></path>
-      </svg>
-    </button>
-  </div>
+    </template>
+  </ThreeLayout>
 </template>
 
 <script setup>
 /**
  * UI 层：只做 Vue 的事 —— 楼层按钮、数据面板、轮询定时器、渲染指标展示。
+ * 页面骨架（stage/txt 收起展开）由 ThreeLayout 提供，本组件通过
+ * layoutRef.stageRef 拿到 canvas 容器喂给场景模块。
  * three.js 场景的一切（InstancedMesh / 拾取 / 相机 / 呼吸动画 / dispose）
  * 在 DTwinScene.js，两者只通过 createWorkshopScene 的返回接口 + hooks 通信：
  *   UI → 场景：switchFloor / pollSelected / dispose
  *   场景 → UI：hooks.onSelect / onDeselect / onMetrics
  */
 import { onMounted, onUnmounted, ref } from 'vue';
+import ThreeLayout from '../components/ThreeLayout.vue';
 import { createWorkshopScene } from './dtwin/DTwinScene';
 
 const STATUS_TEXT = ['运行中', '告警', '停机'];
@@ -100,10 +74,7 @@ const panel = ref({
   device: { id: '', status: 0, temp: 0, rpm: 0, vib: 0, out: 0 },
 });
 
-const stageRef = ref(null);
-
-// 右侧文案面板收起/展开
-const txtCollapsed = ref(false);
+const layoutRef = ref(null);
 
 function statusText(s) {
   return STATUS_TEXT[s] ?? '未知';
@@ -137,10 +108,15 @@ function switchFloor(i) {
   workshop.switchFloor(i);
 }
 
+// ThreeLayout 的舞台尺寸变化（txt 收起/展开）转发给场景自适应
+function onStageResize() {
+  workshop?.onStageResize();
+}
+
 /* ===================== 生命周期 ===================== */
 onMounted(() => {
   // 场景创建失败静默（容器不存在等），面板/HUD 依然可渲染
-  workshop = createWorkshopScene(stageRef.value, {
+  workshop = createWorkshopScene(layoutRef.value.stageRef, {
     onSelect: handleSelect,
     onDeselect: handleDeselect,
     onMetrics: handleMetrics,
@@ -171,107 +147,6 @@ onUnmounted(dispose);
 </script>
 
 <style scoped>
-.dtwin {
-  position: relative; /* 收起/展开按钮以此为锚点 */
-  display: flex; /* 横向：左 canvas，右文案 */
-  align-items: stretch;
-  /* 导航是左侧边栏不占纵向空间，直接铺满整屏；
-     舞台用 flex:1 吃掉剩余空间，杜绝纵向滚动条 */
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* ---- 右侧文案说明 ---- */
-.txt {
-  width: 260px;
-  flex-shrink: 0;
-  padding: 12px;
-  background: var(--color-bg);
-  color: #000;
-  overflow: hidden;
-  border-left: 2px solid #333;
-  transition:
-    width 0.25s ease,
-    padding 0.25s ease;
-}
-
-/* 收起态：宽度收到 0（按钮浮在场景上，不随布局挤压） */
-.txt.collapsed {
-  width: 0;
-  padding: 12px 0;
-}
-
-.txt-title {
-  font-size: 15px;
-  font-weight: bold;
-  color: #000;
-}
-
-.txt-sub {
-  margin-top: 8px;
-  font-size: 11px;
-  line-height: 1.7;
-  color: #000;
-}
-
-.txt-hint {
-  margin-top: 14px;
-  padding-top: 10px;
-  border-top: 1px dashed #000;
-  font-size: 10px;
-  line-height: 1.8;
-  color: #000;
-}
-
-/* ---- 收起/展开圆形按钮：骑在文案面板左边缘 ---- */
-.txt-toggle {
-  position: absolute;
-  top: 50%;
-  right: 260px; /* 展开态：260px = 面板宽度，即面板左缘 */
-  z-index: 30;
-  width: 26px;
-  height: 26px;
-  font-size: 14px;
-  line-height: 24px;
-  text-align: center;
-  color: #333;
-  background: rgba(255, 255, 255, 1);
-  border: 2px solid #333;
-  border-radius: 50%;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  transform: translate(50%, -50%); /* 半个身位压在场景上 */
-  transition:
-    right 0.25s ease,
-    transform 0.25s ease;
-}
-
-/* 收起态：面板宽度为 0，按钮整体收进右缘内保持可见 */
-.txt-toggle.collapsed {
-  right: 0;
-  transform: translate(0, -50%);
-}
-
-/* 图标：默认箭头朝右；收起态 scaleX(-1) 镜像成朝左，带动画 */
-.txt-toggle svg {
-  width: 14px;
-  height: 14px;
-  transition: transform 0.25s ease;
-}
-
-.txt-toggle.collapsed svg {
-  transform: scaleX(-1);
-}
-
-.stage {
-  position: relative; /* HUD/面板以它为锚点 */
-  width: 100%;
-  flex: 1;
-  min-height: 200px;
-  overflow: hidden;
-}
-
 /* ---- HUD：楼层切换 + 渲染指标 ---- */
 .hud {
   position: absolute;
@@ -394,9 +269,5 @@ onUnmounted(dispose);
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
-}
-.dtwin :deep() {
-  canvas[data-engine] {
-  }
 }
 </style>

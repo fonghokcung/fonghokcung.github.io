@@ -45,6 +45,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(rafId);
+  timer?.disconnect(document); // 摘掉 Timer 挂在 document 上的 visibilitychange 监听
   renderer?.dispose();
   mesh?.geometry?.dispose();
   mesh?.material?.dispose();
