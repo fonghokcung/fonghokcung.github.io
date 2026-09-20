@@ -13,6 +13,9 @@
     "area": 44,
     "lat": 17.078,
     "lon": -61.783,
+    "gdpLatest": 2162366667,
+    "gdpYear": "2024",
+    "populationLatest": 93316,
     "population": {
       "2005": 83039
     }
@@ -31,6 +34,9 @@
     "area": 238174,
     "lat": 28.163,
     "lon": 2.632,
+    "gdpLatest": 269322281665,
+    "gdpYear": "2024",
+    "populationLatest": 46164219,
     "population": {
       "2005": 32854159
     }
@@ -49,6 +55,9 @@
     "area": 8260,
     "lat": 40.43,
     "lon": 47.395,
+    "gdpLatest": 74426000000,
+    "gdpYear": "2024",
+    "populationLatest": 10153958,
     "population": {
       "2005": 8352021
     }
@@ -67,6 +76,9 @@
     "area": 2740,
     "lat": 41.143,
     "lon": 20.068,
+    "gdpLatest": 27037474263,
+    "gdpYear": "2024",
+    "populationLatest": 2411658,
     "population": {
       "2005": 3153731
     }
@@ -85,6 +97,9 @@
     "area": 2820,
     "lat": 40.534,
     "lon": 44.563,
+    "gdpLatest": 25955275380,
+    "gdpYear": "2024",
+    "populationLatest": 2964300,
     "population": {
       "2005": 3017661
     }
@@ -103,6 +118,9 @@
     "area": 124670,
     "lat": -12.296,
     "lon": 17.544,
+    "gdpLatest": 103080538044,
+    "gdpYear": "2024",
+    "populationLatest": 36749906,
     "population": {
       "2005": 16095214
     }
@@ -121,6 +139,9 @@
     "area": 20,
     "lat": -14.318,
     "lon": -170.73,
+    "gdpLatest": 871000000,
+    "gdpYear": "2022",
+    "populationLatest": 47521,
     "population": {
       "2005": 64051
     }
@@ -139,6 +160,9 @@
     "area": 273669,
     "lat": -35.377,
     "lon": -65.167,
+    "gdpLatest": 638365455340,
+    "gdpYear": "2024",
+    "populationLatest": 45538401,
     "population": {
       "2005": 38747148
     }
@@ -157,6 +181,9 @@
     "area": 768230,
     "lat": -24.973,
     "lon": 136.189,
+    "gdpLatest": 1757022451653,
+    "gdpYear": "2024",
+    "populationLatest": 26659922,
     "population": {
       "2005": 20310208
     }
@@ -175,6 +202,9 @@
     "area": 71,
     "lat": 26.019,
     "lon": 50.562,
+    "gdpLatest": 47210732713,
+    "gdpYear": "2024",
+    "populationLatest": 1577059,
     "population": {
       "2005": 724788
     }
@@ -193,6 +223,9 @@
     "area": 43,
     "lat": 13.153,
     "lon": -59.559,
+    "gdpLatest": 7597571450,
+    "gdpYear": "2024",
+    "populationLatest": 282336,
     "population": {
       "2005": 291933
     }
@@ -211,6 +244,9 @@
     "area": 5,
     "lat": 32.336,
     "lon": -64.709,
+    "gdpLatest": 9194499000,
+    "gdpYear": "2024",
+    "populationLatest": 64698,
     "population": {
       "2005": 64174
     }
@@ -229,6 +265,9 @@
     "area": 1001,
     "lat": 24.628,
     "lon": -78.014,
+    "gdpLatest": 15832800000,
+    "gdpYear": "2024",
+    "populationLatest": 399440,
     "population": {
       "2005": 323295
     }
@@ -247,6 +286,9 @@
     "area": 13017,
     "lat": 24.218,
     "lon": 89.941,
+    "gdpLatest": 450119432069,
+    "gdpYear": "2024",
+    "populationLatest": 171466990,
     "population": {
       "2005": 15328112
     }
@@ -265,6 +307,9 @@
     "area": 2281,
     "lat": 17.219,
     "lon": -88.602,
+    "gdpLatest": 3203631800,
+    "gdpYear": "2024",
+    "populationLatest": 411106,
     "population": {
       "2005": 275546
     }
@@ -283,6 +328,9 @@
     "area": 5120,
     "lat": 44.169,
     "lon": 17.786,
+    "gdpLatest": 29737363103,
+    "gdpYear": "2024",
+    "populationLatest": 3185073,
     "population": {
       "2005": 3915238
     }
@@ -301,6 +349,9 @@
     "area": 108438,
     "lat": -16.715,
     "lon": -64.671,
+    "gdpLatest": 54881327453,
+    "gdpYear": "2024",
+    "populationLatest": 12244159,
     "population": {
       "2005": 9182015
     }
@@ -319,6 +370,9 @@
     "area": 65755,
     "lat": 21.718,
     "lon": 96.041,
+    "gdpLatest": 74068349524,
+    "gdpYear": "2024",
+    "populationLatest": 54133798,
     "population": {
       "2005": 47967266
     }
@@ -337,6 +391,9 @@
     "area": 11062,
     "lat": 10.541,
     "lon": 2.469,
+    "gdpLatest": 21482643706,
+    "gdpYear": "2024",
+    "populationLatest": 14111034,
     "population": {
       "2005": 8490301
     }
@@ -355,6 +412,9 @@
     "area": 2799,
     "lat": -9.611,
     "lon": 160.109,
+    "gdpLatest": 1583964704,
+    "gdpYear": "2024",
+    "populationLatest": 800005,
     "population": {
       "2005": 472419
     }
@@ -373,6 +433,9 @@
     "area": 845942,
     "lat": -10.772,
     "lon": -53.089,
+    "gdpLatest": 2185821610689,
+    "gdpYear": "2024",
+    "populationLatest": 211140729,
     "population": {
       "2005": 186830759
     }
@@ -391,6 +454,9 @@
     "area": 11063,
     "lat": 42.761,
     "lon": 25.231,
+    "gdpLatest": 113349149167,
+    "gdpYear": "2024",
+    "populationLatest": 6446596,
     "population": {
       "2005": 7744591
     }
@@ -409,6 +475,9 @@
     "area": 527,
     "lat": 4.468,
     "lon": 114.591,
+    "gdpLatest": 15340808592,
+    "gdpYear": "2024",
+    "populationLatest": 458949,
     "population": {
       "2005": 373831
     }
@@ -427,6 +496,9 @@
     "area": 909351,
     "lat": 59.081,
     "lon": -109.433,
+    "gdpLatest": 2270076189683,
+    "gdpYear": "2024",
+    "populationLatest": 40049088,
     "population": {
       "2005": 32270507
     }
@@ -445,6 +517,9 @@
     "area": 17652,
     "lat": 12.714,
     "lon": 104.564,
+    "gdpLatest": 46352647037,
+    "gdpYear": "2024",
+    "populationLatest": 17423880,
     "population": {
       "2005": 13955507
     }
@@ -463,6 +538,9 @@
     "area": 6463,
     "lat": 7.612,
     "lon": 80.704,
+    "gdpLatest": 99616111266,
+    "gdpYear": "2024",
+    "populationLatest": 22037000,
     "population": {
       "2005": 19120763
     }
@@ -481,6 +559,9 @@
     "area": 34150,
     "lat": -0.055,
     "lon": 15.986,
+    "gdpLatest": 15719986077,
+    "gdpYear": "2024",
+    "populationLatest": 6182885,
     "population": {
       "2005": 3609851
     }
@@ -499,6 +580,9 @@
     "area": 226705,
     "lat": -2.876,
     "lon": 23.654,
+    "gdpLatest": 75716176105,
+    "gdpYear": "2024",
+    "populationLatest": 105789731,
     "population": {
       "2005": 58740547
     }
@@ -517,6 +601,9 @@
     "area": 2568,
     "lat": -3.356,
     "lon": 29.887,
+    "gdpLatest": 3037579858,
+    "gdpYear": "2024",
+    "populationLatest": 13689450,
     "population": {
       "2005": 7858791
     }
@@ -535,6 +622,9 @@
     "area": 932743,
     "lat": 33.42,
     "lon": 106.514,
+    "gdpLatest": 18729668435848,
+    "gdpYear": "2024",
+    "populationLatest": 1410710000,
     "population": {
       "2005": 1312978855
     }
@@ -553,6 +643,9 @@
     "area": 65209,
     "lat": 33.677,
     "lon": 65.216,
+    "gdpLatest": 17778508876,
+    "gdpYear": "2024",
+    "populationLatest": 41454761,
     "population": {
       "2005": 25067407
     }
@@ -571,6 +664,9 @@
     "area": 4700,
     "lat": 27.415,
     "lon": 90.429,
+    "gdpLatest": 3346603859,
+    "gdpYear": "2024",
+    "populationLatest": 786385,
     "population": {
       "2005": 637013
     }
@@ -589,6 +685,9 @@
     "area": 74880,
     "lat": -23.389,
     "lon": -69.433,
+    "gdpLatest": 329260633699,
+    "gdpYear": "2024",
+    "populationLatest": 19658835,
     "population": {
       "2005": 16295102
     }
@@ -607,6 +706,9 @@
     "area": 26,
     "lat": 19.314,
     "lon": -81.198,
+    "gdpLatest": 7765336505,
+    "gdpYear": "2024",
+    "populationLatest": 73038,
     "population": {
       "2005": 45591
     }
@@ -625,6 +727,9 @@
     "area": 46540,
     "lat": 5.133,
     "lon": 12.277,
+    "gdpLatest": 53296694320,
+    "gdpYear": "2024",
+    "populationLatest": 28372687,
     "population": {
       "2005": 17795149
     }
@@ -643,6 +748,9 @@
     "area": 125920,
     "lat": 15.361,
     "lon": 18.665,
+    "gdpLatest": 19906706690,
+    "gdpYear": "2024",
+    "populationLatest": 19319064,
     "population": {
       "2005": 10145609
     }
@@ -661,6 +769,9 @@
     "area": 223,
     "lat": -11.758,
     "lon": 43.337,
+    "gdpLatest": 1610082688,
+    "gdpYear": "2024",
+    "populationLatest": 850387,
     "population": {
       "2005": 797902
     }
@@ -679,6 +790,9 @@
     "area": 103870,
     "lat": 3.9,
     "lon": -73.076,
+    "gdpLatest": 420504033143,
+    "gdpYear": "2024",
+    "populationLatest": 52321152,
     "population": {
       "2005": 4494579
     }
@@ -697,6 +811,9 @@
     "area": 5106,
     "lat": 9.971,
     "lon": -83.946,
+    "gdpLatest": 96715644331,
+    "gdpYear": "2024",
+    "populationLatest": 5105525,
     "population": {
       "2005": 4327228
     }
@@ -715,6 +832,9 @@
     "area": 62298,
     "lat": 6.571,
     "lon": 20.483,
+    "gdpLatest": 2751494281,
+    "gdpYear": "2024",
+    "populationLatest": 5152421,
     "population": {
       "2005": 4191429
     }
@@ -733,6 +853,7 @@
     "area": 10982,
     "lat": 21.297,
     "lon": -77.781,
+    "populationLatest": 11019931,
     "population": {
       "2005": 11259905
     }
@@ -751,6 +872,9 @@
     "area": 403,
     "lat": 15.071,
     "lon": -23.634,
+    "gdpLatest": 2713721857,
+    "gdpYear": "2024",
+    "populationLatest": 522331,
     "population": {
       "2005": 506807
     }
@@ -787,6 +911,9 @@
     "area": 924,
     "lat": 35.043,
     "lon": 33.219,
+    "gdpLatest": 37634551821,
+    "gdpYear": "2024",
+    "populationLatest": 1344976,
     "population": {
       "2005": 836321
     }
@@ -805,6 +932,9 @@
     "area": 4243,
     "lat": 56.058,
     "lon": 9.264,
+    "gdpLatest": 424524722037,
+    "gdpYear": "2024",
+    "populationLatest": 5946952,
     "population": {
       "2005": 5416945
     }
@@ -823,6 +953,9 @@
     "area": 2318,
     "lat": 11.9,
     "lon": 42.516,
+    "gdpLatest": 4152145940,
+    "gdpYear": "2024",
+    "populationLatest": 1152944,
     "population": {
       "2005": 804206
     }
@@ -841,6 +974,9 @@
     "area": 75,
     "lat": 15.475,
     "lon": -61.356,
+    "gdpLatest": 688881481,
+    "gdpYear": "2024",
+    "populationLatest": 66510,
     "population": {
       "2005": 67827
     }
@@ -859,6 +995,9 @@
     "area": 4838,
     "lat": 19.015,
     "lon": -70.729,
+    "gdpLatest": 124282245639,
+    "gdpYear": "2024",
+    "populationLatest": 11331265,
     "population": {
       "2005": 9469601
     }
@@ -877,6 +1016,9 @@
     "area": 27684,
     "lat": -1.385,
     "lon": -78.497,
+    "gdpLatest": 123802374000,
+    "gdpYear": "2024",
+    "populationLatest": 17980083,
     "population": {
       "2005": 13060993
     }
@@ -895,6 +1037,9 @@
     "area": 99545,
     "lat": 26.494,
     "lon": 29.872,
+    "gdpLatest": 389059910593,
+    "gdpYear": "2024",
+    "populationLatest": 114535772,
     "population": {
       "2005": 72849793
     }
@@ -913,6 +1058,9 @@
     "area": 6889,
     "lat": 53.177,
     "lon": -8.152,
+    "gdpLatest": 609157459747,
+    "gdpYear": "2024",
+    "populationLatest": 5311538,
     "population": {
       "2005": 4143294
     }
@@ -931,6 +1079,9 @@
     "area": 2805,
     "lat": 1.607,
     "lon": 10.488,
+    "gdpLatest": 13254388261,
+    "gdpYear": "2024",
+    "populationLatest": 1847549,
     "population": {
       "2005": 484098
     }
@@ -949,6 +1100,9 @@
     "area": 4239,
     "lat": 58.674,
     "lon": 25.793,
+    "gdpLatest": 43130419829,
+    "gdpYear": "2024",
+    "populationLatest": 1370286,
     "population": {
       "2005": 1344312
     }
@@ -967,6 +1121,7 @@
     "area": 10100,
     "lat": 16.045,
     "lon": 38.219,
+    "populationLatest": 3470390,
     "population": {
       "2005": 4526722
     }
@@ -985,6 +1140,9 @@
     "area": 2072,
     "lat": 13.736,
     "lon": -88.866,
+    "gdpLatest": 34879730000,
+    "gdpYear": "2024",
+    "populationLatest": 6309624,
     "population": {
       "2005": 6668356
     }
@@ -1003,6 +1161,9 @@
     "area": 100000,
     "lat": 8.626,
     "lon": 39.616,
+    "gdpLatest": 149740297952,
+    "gdpYear": "2024",
+    "populationLatest": 128691692,
     "population": {
       "2005": 78985857
     }
@@ -1021,6 +1182,9 @@
     "area": 8245,
     "lat": 47.683,
     "lon": 14.912,
+    "gdpLatest": 534790720467,
+    "gdpYear": "2024",
+    "populationLatest": 9131761,
     "population": {
       "2005": 8291979
     }
@@ -1039,6 +1203,9 @@
     "area": 7727,
     "lat": 49.743,
     "lon": 15.338,
+    "gdpLatest": 347082562221,
+    "gdpYear": "2024",
+    "populationLatest": 10864042,
     "population": {
       "2005": 10191762
     }
@@ -1075,6 +1242,9 @@
     "area": 30459,
     "lat": 64.504,
     "lon": 26.272,
+    "gdpLatest": 298729432712,
+    "gdpYear": "2024",
+    "populationLatest": 5583911,
     "population": {
       "2005": 5246004
     }
@@ -1093,6 +1263,9 @@
     "area": 1827,
     "lat": -17.819,
     "lon": 177.974,
+    "gdpLatest": 5968125909,
+    "gdpYear": "2024",
+    "populationLatest": 924145,
     "population": {
       "2005": 828046
     }
@@ -1129,6 +1302,9 @@
     "area": 70,
     "lat": 6.883,
     "lon": 158.235,
+    "gdpLatest": 481121300,
+    "gdpYear": "2024",
+    "populationLatest": 112630,
     "population": {
       "2005": 110058
     }
@@ -1147,6 +1323,9 @@
     "area": 366,
     "lat": -17.626,
     "lon": -149.462,
+    "gdpLatest": 6323716355,
+    "gdpYear": "2024",
+    "populationLatest": 281118,
     "population": {
       "2005": 255632
     }
@@ -1165,6 +1344,9 @@
     "area": 55010,
     "lat": 46.565,
     "lon": 2.55,
+    "gdpLatest": 3160442622465,
+    "gdpYear": "2024",
+    "populationLatest": 68372286,
     "population": {
       "2005": 60990544
     }
@@ -1183,6 +1365,9 @@
     "area": 1000,
     "lat": 13.453,
     "lon": -15.386,
+    "gdpLatest": 2404888738,
+    "gdpYear": "2024",
+    "populationLatest": 2697845,
     "population": {
       "2005": 1617029
     }
@@ -1201,6 +1386,9 @@
     "area": 25767,
     "lat": -0.591,
     "lon": 11.797,
+    "gdpLatest": 20895684426,
+    "gdpYear": "2024",
+    "populationLatest": 2484789,
     "population": {
       "2005": 1290693
     }
@@ -1219,6 +1407,9 @@
     "area": 6949,
     "lat": 42.176,
     "lon": 43.518,
+    "gdpLatest": 34189423333,
+    "gdpYear": "2024",
+    "populationLatest": 3715483,
     "population": {
       "2005": 4473409
     }
@@ -1237,6 +1428,9 @@
     "area": 22754,
     "lat": 7.96,
     "lon": -1.207,
+    "gdpLatest": 83288585604,
+    "gdpYear": "2024",
+    "populationLatest": 33787914,
     "population": {
       "2005": 2253501
     }
@@ -1255,6 +1449,9 @@
     "area": 34,
     "lat": 12.118,
     "lon": -61.678,
+    "gdpLatest": 1351270370,
+    "gdpYear": "2024",
+    "populationLatest": 117081,
     "population": {
       "2005": 105237
     }
@@ -1273,6 +1470,9 @@
     "area": 41045,
     "lat": 74.719,
     "lon": -41.391,
+    "gdpLatest": 3326543974,
+    "gdpYear": "2023",
+    "populationLatest": 56865,
     "population": {
       "2005": 57475
     }
@@ -1291,6 +1491,9 @@
     "area": 34895,
     "lat": 51.11,
     "lon": 9.851,
+    "gdpLatest": 4685592577805,
+    "gdpYear": "2024",
+    "populationLatest": 83287273,
     "population": {
       "2005": 82652369
     }
@@ -1309,6 +1512,9 @@
     "area": 55,
     "lat": 13.385,
     "lon": 144.707,
+    "gdpLatest": 6910000000,
+    "gdpYear": "2022",
+    "populationLatest": 166506,
     "population": {
       "2005": 16857
     }
@@ -1327,6 +1533,9 @@
     "area": 12890,
     "lat": 39.666,
     "lon": 21.766,
+    "gdpLatest": 256238371778,
+    "gdpYear": "2024",
+    "populationLatest": 10407351,
     "population": {
       "2005": 11099737
     }
@@ -1345,6 +1554,9 @@
     "area": 10843,
     "lat": 15.256,
     "lon": -90.398,
+    "gdpLatest": 113215575151,
+    "gdpYear": "2024",
+    "populationLatest": 18124838,
     "population": {
       "2005": 12709564
     }
@@ -1363,6 +1575,9 @@
     "area": 24572,
     "lat": 10.439,
     "lon": -10.942,
+    "gdpLatest": 25008678293,
+    "gdpYear": "2024",
+    "populationLatest": 14405468,
     "population": {
       "2005": 9002656
     }
@@ -1381,6 +1596,9 @@
     "area": 19685,
     "lat": 4.792,
     "lon": -58.974,
+    "gdpLatest": 24662714628,
+    "gdpYear": "2024",
+    "populationLatest": 826353,
     "population": {
       "2005": 739472
     }
@@ -1399,6 +1617,9 @@
     "area": 2756,
     "lat": 19.142,
     "lon": -72.278,
+    "gdpLatest": 24255657481,
+    "gdpYear": "2024",
+    "populationLatest": 11637398,
     "population": {
       "2005": 9296291
     }
@@ -1417,6 +1638,9 @@
     "area": 11189,
     "lat": 14.819,
     "lon": -86.863,
+    "gdpLatest": 36980171442,
+    "gdpYear": "2024",
+    "populationLatest": 10644851,
     "population": {
       "2005": 683411
     }
@@ -1435,6 +1659,9 @@
     "area": 5592,
     "lat": 45.723,
     "lon": 16.693,
+    "gdpLatest": 92981894168,
+    "gdpYear": "2024",
+    "populationLatest": 3859686,
     "population": {
       "2005": 455149
     }
@@ -1453,6 +1680,9 @@
     "area": 9210,
     "lat": 47.07,
     "lon": 19.134,
+    "gdpLatest": 222848211034,
+    "gdpYear": "2024",
+    "populationLatest": 9592186,
     "population": {
       "2005": 10086387
     }
@@ -1471,6 +1701,9 @@
     "area": 10025,
     "lat": 64.764,
     "lon": -18.48,
+    "gdpLatest": 33186621855,
+    "gdpYear": "2024",
+    "populationLatest": 385663,
     "population": {
       "2005": 295732
     }
@@ -1489,6 +1722,9 @@
     "area": 297319,
     "lat": 21,
     "lon": 78.5,
+    "gdpLatest": 3760813470501,
+    "gdpYear": "2024",
+    "populationLatest": 1438069596,
     "population": {
       "2005": 1134403141
     }
@@ -1507,6 +1743,9 @@
     "area": 163620,
     "lat": 32.565,
     "lon": 54.301,
+    "gdpLatest": 475252089215,
+    "gdpYear": "2024",
+    "populationLatest": 90608707,
     "population": {
       "2005": 69420607
     }
@@ -1525,6 +1764,9 @@
     "area": 2171,
     "lat": 31.026,
     "lon": 34.851,
+    "gdpLatest": 542284494491,
+    "gdpYear": "2024",
+    "populationLatest": 9849000,
     "population": {
       "2005": 6692037
     }
@@ -1543,6 +1785,9 @@
     "area": 29411,
     "lat": 42.7,
     "lon": 12.8,
+    "gdpLatest": 2383435562458,
+    "gdpYear": "2024",
+    "populationLatest": 58984216,
     "population": {
       "2005": 5864636
     }
@@ -1561,6 +1806,9 @@
     "area": 31800,
     "lat": 7.632,
     "lon": -5.556,
+    "gdpLatest": 87113179149,
+    "gdpYear": "2024",
+    "populationLatest": 31165654,
     "population": {
       "2005": 18584701
     }
@@ -1579,6 +1827,9 @@
     "area": 43737,
     "lat": 33.048,
     "lon": 43.772,
+    "gdpLatest": 279641257615,
+    "gdpYear": "2024",
+    "populationLatest": 45074049,
     "population": {
       "2005": 27995984
     }
@@ -1597,6 +1848,9 @@
     "area": 36450,
     "lat": 36.491,
     "lon": 139.068,
+    "gdpLatest": 4190008188359,
+    "gdpYear": "2024",
+    "populationLatest": 124516650,
     "population": {
       "2005": 127896740
     }
@@ -1615,6 +1869,9 @@
     "area": 1083,
     "lat": 18.151,
     "lon": -77.32,
+    "gdpLatest": 22014429051,
+    "gdpYear": "2024",
+    "populationLatest": 2839786,
     "population": {
       "2005": 2682469
     }
@@ -1633,6 +1890,9 @@
     "area": 8824,
     "lat": 30.703,
     "lon": 36.319,
+    "gdpLatest": 58618380563,
+    "gdpYear": "2024",
+    "populationLatest": 11439213,
     "population": {
       "2005": 5544066
     }
@@ -1651,6 +1911,9 @@
     "area": 56914,
     "lat": 0.53,
     "lon": 37.858,
+    "gdpLatest": 120397537850,
+    "gdpYear": "2024",
+    "populationLatest": 55339003,
     "population": {
       "2005": 35598952
     }
@@ -1669,6 +1932,9 @@
     "area": 19180,
     "lat": 41.465,
     "lon": 74.555,
+    "gdpLatest": 18161630699,
+    "gdpYear": "2024",
+    "populationLatest": 7099750,
     "population": {
       "2005": 5203547
     }
@@ -1705,6 +1971,9 @@
     "area": 73,
     "lat": -1.508,
     "lon": 175.036,
+    "gdpLatest": 343153235,
+    "gdpYear": "2024",
+    "populationLatest": 132530,
     "population": {
       "2005": 92003
     }
@@ -1723,6 +1992,9 @@
     "area": 9873,
     "lat": 36.504,
     "lon": 128.103,
+    "gdpLatest": 1875388209407,
+    "gdpYear": "2024",
+    "populationLatest": 51712619,
     "population": {
       "2005": 47869837
     }
@@ -1741,6 +2013,9 @@
     "area": 1782,
     "lat": 29.476,
     "lon": 47.376,
+    "gdpLatest": 160903106639,
+    "gdpYear": "2024",
+    "populationLatest": 4853420,
     "population": {
       "2005": 2700
     }
@@ -1759,6 +2034,9 @@
     "area": 269970,
     "lat": 48.16,
     "lon": 67.301,
+    "gdpLatest": 291480274649,
+    "gdpYear": "2024",
+    "populationLatest": 20330104,
     "population": {
       "2005": 15210609
     }
@@ -1777,6 +2055,9 @@
     "area": 23080,
     "lat": 19.905,
     "lon": 102.471,
+    "gdpLatest": 16502933121,
+    "gdpYear": "2024",
+    "populationLatest": 7664993,
     "population": {
       "2005": 566391
     }
@@ -1795,6 +2076,9 @@
     "area": 1023,
     "lat": 33.92,
     "lon": 35.888,
+    "gdpLatest": 25971643441,
+    "gdpYear": "2024",
+    "populationLatest": 5773493,
     "population": {
       "2005": 401074
     }
@@ -1813,6 +2097,9 @@
     "area": 6205,
     "lat": 56.858,
     "lon": 25.641,
+    "gdpLatest": 44001275013,
+    "gdpYear": "2024",
+    "populationLatest": 1883710,
     "population": {
       "2005": 2301793
     }
@@ -1831,6 +2118,9 @@
     "area": 20748,
     "lat": 53.54,
     "lon": 28.047,
+    "gdpLatest": 78591839300,
+    "gdpYear": "2024",
+    "populationLatest": 9178298,
     "population": {
       "2005": 9795287
     }
@@ -1849,6 +2139,9 @@
     "area": 6268,
     "lat": 55.336,
     "lon": 23.897,
+    "gdpLatest": 85503938574,
+    "gdpYear": "2024",
+    "populationLatest": 2871585,
     "population": {
       "2005": 3425077
     }
@@ -1867,6 +2160,9 @@
     "area": 9632,
     "lat": 6.682,
     "lon": -9.657,
+    "gdpLatest": 4779300900,
+    "gdpYear": "2024",
+    "populationLatest": 5493031,
     "population": {
       "2005": 3441796
     }
@@ -1885,6 +2181,9 @@
     "area": 4808,
     "lat": 48.707,
     "lon": 19.491,
+    "gdpLatest": 140934076532,
+    "gdpYear": "2024",
+    "populationLatest": 5426740,
     "population": {
       "2005": 5386995
     }
@@ -1903,6 +2202,9 @@
     "area": 16,
     "lat": 47.153,
     "lon": 9.555,
+    "gdpLatest": 8905764270,
+    "gdpYear": "2024",
+    "populationLatest": 39846,
     "population": {
       "2005": 34598
     }
@@ -1921,6 +2223,9 @@
     "area": 175954,
     "lat": 27.044,
     "lon": 18.023,
+    "gdpLatest": 48487151215,
+    "gdpYear": "2024",
+    "populationLatest": 7305659,
     "population": {
       "2005": 5918217
     }
@@ -1939,6 +2244,9 @@
     "area": 58154,
     "lat": -19.374,
     "lon": 46.706,
+    "gdpLatest": 17592832696,
+    "gdpYear": "2024",
+    "populationLatest": 31195932,
     "population": {
       "2005": 18642586
     }
@@ -1975,6 +2283,9 @@
     "area": 156650,
     "lat": 46.056,
     "lon": 102.876,
+    "gdpLatest": 23794540025,
+    "gdpYear": "2024",
+    "populationLatest": 3481145,
     "population": {
       "2005": 2580704
     }
@@ -2011,6 +2322,9 @@
     "area": 2543,
     "lat": 41.6,
     "lon": 21.698,
+    "gdpLatest": 16951682221,
+    "gdpYear": "2024",
+    "populationLatest": 1827816,
     "population": {
       "2005": 2033655
     }
@@ -2029,6 +2343,9 @@
     "area": 122019,
     "lat": 17.35,
     "lon": -3.524,
+    "gdpLatest": 26761281077,
+    "gdpYear": "2024",
+    "populationLatest": 23769127,
     "population": {
       "2005": 1161109
     }
@@ -2047,6 +2364,9 @@
     "area": 44630,
     "lat": 32.706,
     "lon": -5.758,
+    "gdpLatest": 160610994055,
+    "gdpYear": "2024",
+    "populationLatest": 37712505,
     "population": {
       "2005": 30494991
     }
@@ -2065,6 +2385,9 @@
     "area": 203,
     "lat": -20.255,
     "lon": 57.583,
+    "gdpLatest": 14938055690,
+    "gdpYear": "2024",
+    "populationLatest": 1248647,
     "population": {
       "2005": 1241173
     }
@@ -2083,6 +2406,9 @@
     "area": 102522,
     "lat": 20.26,
     "lon": -10.332,
+    "gdpLatest": 10879212033,
+    "gdpYear": "2024",
+    "populationLatest": 5022441,
     "population": {
       "2005": 2963105
     }
@@ -2101,6 +2427,9 @@
     "area": 32,
     "lat": 35.89,
     "lon": 14.442,
+    "gdpLatest": 25042712191,
+    "gdpYear": "2024",
+    "populationLatest": 552747,
     "population": {
       "2005": 402617
     }
@@ -2119,6 +2448,9 @@
     "area": 30950,
     "lat": 21.656,
     "lon": 57.407,
+    "gdpLatest": 107137198700,
+    "gdpYear": "2024",
+    "populationLatest": 5049269,
     "population": {
       "2005": 2507042
     }
@@ -2137,6 +2469,9 @@
     "area": 30,
     "lat": 3.548,
     "lon": 72.92,
+    "gdpLatest": 7061608267,
+    "gdpYear": "2024",
+    "populationLatest": 525994,
     "population": {
       "2005": 295297
     }
@@ -2155,6 +2490,9 @@
     "area": 190869,
     "lat": 23.951,
     "lon": -102.535,
+    "gdpLatest": 1830489311089,
+    "gdpYear": "2024",
+    "populationLatest": 129739759,
     "population": {
       "2005": 104266392
     }
@@ -2173,6 +2511,9 @@
     "area": 32855,
     "lat": 4.201,
     "lon": 102.195,
+    "gdpLatest": 422227005429,
+    "gdpYear": "2024",
+    "populationLatest": 35126298,
     "population": {
       "2005": 25652985
     }
@@ -2191,6 +2532,9 @@
     "area": 78409,
     "lat": -14.422,
     "lon": 37.923,
+    "gdpLatest": 22752244245,
+    "gdpYear": "2024",
+    "populationLatest": 33635160,
     "population": {
       "2005": 20532675
     }
@@ -2209,6 +2553,9 @@
     "area": 9408,
     "lat": -13.4,
     "lon": 33.808,
+    "gdpLatest": 11311971400,
+    "gdpYear": "2024",
+    "populationLatest": 21104482,
     "population": {
       "2005": 13226091
     }
@@ -2227,6 +2574,9 @@
     "area": 1828,
     "lat": -21.359,
     "lon": 165.447,
+    "gdpLatest": 8548919387,
+    "gdpYear": "2024",
+    "populationLatest": 289870,
     "population": {
       "2005": 234185
     }
@@ -2263,6 +2613,9 @@
     "area": 126670,
     "lat": 17.426,
     "lon": 9.398,
+    "gdpLatest": 19729786047,
+    "gdpYear": "2024",
+    "populationLatest": 26159867,
     "population": {
       "2005": 1326419
     }
@@ -2281,6 +2634,9 @@
     "area": 0,
     "lat": 12.517,
     "lon": -69.977,
+    "gdpLatest": 4167588070,
+    "gdpYear": "2024",
+    "populationLatest": 107359,
     "population": {
       "2005": 102897
     }
@@ -2317,6 +2673,9 @@
     "area": 0,
     "lat": 50.643,
     "lon": 4.664,
+    "gdpLatest": 670983130619,
+    "gdpYear": "2024",
+    "populationLatest": 11779946,
     "population": {
       "2005": 10398049
     }
@@ -2335,6 +2694,9 @@
     "area": 0,
     "lat": 22.423,
     "lon": 114.129,
+    "gdpLatest": 408368682415,
+    "gdpYear": "2024",
+    "populationLatest": 7536100,
     "population": {
       "2005": 7057418
     }
@@ -2353,6 +2715,9 @@
     "area": 0,
     "lat": 15.005,
     "lon": 145.623,
+    "gdpLatest": 1096000000,
+    "gdpYear": "2022",
+    "populationLatest": 45143,
     "population": {
       "2005": 80258
     }
@@ -2371,6 +2736,9 @@
     "area": 0,
     "lat": 62.05,
     "lon": -6.864,
+    "gdpLatest": 4052937170,
+    "gdpYear": "2024",
+    "populationLatest": 54398,
     "population": {
       "2005": 48205
     }
@@ -2389,6 +2757,9 @@
     "area": 0,
     "lat": 42.549,
     "lon": 1.576,
+    "gdpLatest": 4044249679,
+    "gdpYear": "2024",
+    "populationLatest": 80856,
     "population": {
       "2005": 73483
     }
@@ -2407,6 +2778,7 @@
     "area": 0,
     "lat": 36.138,
     "lon": -5.345,
+    "populationLatest": 38471,
     "population": {
       "2005": 291
     }
@@ -2425,6 +2797,9 @@
     "area": 0,
     "lat": 54.229,
     "lon": -4.527,
+    "gdpLatest": 7576129933,
+    "gdpYear": "2023",
+    "populationLatest": 84165,
     "population": {
       "2005": 78357
     }
@@ -2443,6 +2818,9 @@
     "area": 0,
     "lat": 49.771,
     "lon": 6.088,
+    "gdpLatest": 93279851863,
+    "gdpYear": "2024",
+    "populationLatest": 666430,
     "population": {
       "2005": 456613
     }
@@ -2461,6 +2839,9 @@
     "area": 0,
     "lat": 22.2,
     "lon": 113.545,
+    "gdpLatest": 49467258923,
+    "gdpYear": "2024",
+    "populationLatest": 678800,
     "population": {
       "2005": 47309
     }
@@ -2479,6 +2860,9 @@
     "area": 0,
     "lat": 43.75,
     "lon": 7.412,
+    "gdpLatest": 11125788838,
+    "gdpYear": "2024",
+    "populationLatest": 38956,
     "population": {
       "2005": 325
     }
@@ -2497,6 +2881,9 @@
     "area": 0,
     "lat": 32.037,
     "lon": 35.278,
+    "gdpLatest": 16016900000,
+    "gdpYear": "2024",
+    "populationLatest": 5165775,
     "population": {
       "2005": 3762005
     }
@@ -2515,6 +2902,9 @@
     "area": 0,
     "lat": 42.792,
     "lon": 19.254,
+    "gdpLatest": 8274290506,
+    "gdpYear": "2024",
+    "populationLatest": 623529,
     "population": {
       "2005": 607969
     }
@@ -2731,6 +3121,9 @@
     "area": 1219,
     "lat": -15.376,
     "lon": 166.899,
+    "gdpLatest": 1297956615,
+    "gdpYear": "2024",
+    "populationLatest": 320409,
     "population": {
       "2005": 215366
     }
@@ -2749,6 +3142,9 @@
     "area": 91077,
     "lat": 9.594,
     "lon": 8.105,
+    "gdpLatest": 252261880140,
+    "gdpYear": "2024",
+    "populationLatest": 227882945,
     "population": {
       "2005": 141356083
     }
@@ -2767,6 +3163,9 @@
     "area": 3388,
     "lat": 52.077,
     "lon": 5.389,
+    "gdpLatest": 1213936238063,
+    "gdpYear": "2024",
+    "populationLatest": 17877117,
     "population": {
       "2005": 1632769
     }
@@ -2785,6 +3184,9 @@
     "area": 30625,
     "lat": 61.152,
     "lon": 8.74,
+    "gdpLatest": 500886328034,
+    "gdpYear": "2024",
+    "populationLatest": 5519601,
     "population": {
       "2005": 4638836
     }
@@ -2803,6 +3205,9 @@
     "area": 14300,
     "lat": 28.253,
     "lon": 83.939,
+    "gdpLatest": 43298911700,
+    "gdpYear": "2024",
+    "populationLatest": 29694614,
     "population": {
       "2005": 27093656
     }
@@ -2839,6 +3244,9 @@
     "area": 15600,
     "lat": 4.127,
     "lon": -55.912,
+    "gdpLatest": 4416775113,
+    "gdpYear": "2024",
+    "populationLatest": 628886,
     "population": {
       "2005": 452468
     }
@@ -2857,6 +3265,9 @@
     "area": 12140,
     "lat": 12.84,
     "lon": -85.034,
+    "gdpLatest": 19696311850,
+    "gdpYear": "2024",
+    "populationLatest": 6823613,
     "population": {
       "2005": 5462539
     }
@@ -2875,6 +3286,9 @@
     "area": 26799,
     "lat": -42.634,
     "lon": 172.235,
+    "gdpLatest": 261497198364,
+    "gdpYear": "2024",
+    "populationLatest": 5200000,
     "population": {
       "2005": 4097112
     }
@@ -2893,6 +3307,9 @@
     "area": 39730,
     "lat": -23.236,
     "lon": -58.391,
+    "gdpLatest": 44738819362,
+    "gdpYear": "2024",
+    "populationLatest": 6844146,
     "population": {
       "2005": 5904342
     }
@@ -2911,6 +3328,9 @@
     "area": 128000,
     "lat": -9.326,
     "lon": -75.552,
+    "gdpLatest": 291751523019,
+    "gdpYear": "2024",
+    "populationLatest": 33845617,
     "population": {
       "2005": 27274266
     }
@@ -2929,6 +3349,9 @@
     "area": 77088,
     "lat": 29.967,
     "lon": 69.386,
+    "gdpLatest": 371747087751,
+    "gdpYear": "2024",
+    "populationLatest": 247504495,
     "population": {
       "2005": 158080591
     }
@@ -2947,6 +3370,9 @@
     "area": 30629,
     "lat": 52.125,
     "lon": 19.401,
+    "gdpLatest": 917767106147,
+    "gdpYear": "2024",
+    "populationLatest": 36687353,
     "population": {
       "2005": 38195558
     }
@@ -2965,6 +3391,9 @@
     "area": 7443,
     "lat": 8.384,
     "lon": -80.92,
+    "gdpLatest": 86523959100,
+    "gdpYear": "2024",
+    "populationLatest": 4458759,
     "population": {
       "2005": 3231502
     }
@@ -2983,6 +3412,9 @@
     "area": 9150,
     "lat": 40.309,
     "lon": -8.058,
+    "gdpLatest": 313656884871,
+    "gdpYear": "2024",
+    "populationLatest": 10578174,
     "population": {
       "2005": 10528226
     }
@@ -3001,6 +3433,9 @@
     "area": 45286,
     "lat": -5.949,
     "lon": 143.459,
+    "gdpLatest": 30803971189,
+    "gdpYear": "2024",
+    "populationLatest": 10389635,
     "population": {
       "2005": 6069715
     }
@@ -3019,6 +3454,9 @@
     "area": 2812,
     "lat": 12.125,
     "lon": -14.651,
+    "gdpLatest": 2197777210,
+    "gdpYear": "2024",
+    "populationLatest": 2153339,
     "population": {
       "2005": 1596929
     }
@@ -3037,6 +3475,9 @@
     "area": 1100,
     "lat": 25.316,
     "lon": 51.191,
+    "gdpLatest": 216294505495,
+    "gdpYear": "2024",
+    "populationLatest": 2656032,
     "population": {
       "2005": 796186
     }
@@ -3073,6 +3514,9 @@
     "area": 22987,
     "lat": 45.844,
     "lon": 24.969,
+    "gdpLatest": 382564217989,
+    "gdpYear": "2024",
+    "populationLatest": 19061062,
     "population": {
       "2005": 21627557
     }
@@ -3091,6 +3535,9 @@
     "area": 3288,
     "lat": 47.193,
     "lon": 28.599,
+    "gdpLatest": 18206842141,
+    "gdpYear": "2024",
+    "populationLatest": 2457783,
     "population": {
       "2005": 3876661
     }
@@ -3109,6 +3556,9 @@
     "area": 29817,
     "lat": 11.118,
     "lon": 122.466,
+    "gdpLatest": 461671157905,
+    "gdpYear": "2024",
+    "populationLatest": 114891199,
     "population": {
       "2005": 84566163
     }
@@ -3145,6 +3595,9 @@
     "area": 1638094,
     "lat": 61.988,
     "lon": 96.689,
+    "gdpLatest": 2186462268813,
+    "gdpYear": "2024",
+    "populationLatest": 143826130,
     "population": {
       "2005": 143953092
     }
@@ -3163,6 +3616,9 @@
     "area": 2467,
     "lat": -1.998,
     "lon": 29.917,
+    "gdpLatest": 15111064182,
+    "gdpYear": "2024",
+    "populationLatest": 13954471,
     "population": {
       "2005": 9233793
     }
@@ -3181,6 +3637,9 @@
     "area": 214969,
     "lat": 24.023,
     "lon": 44.585,
+    "gdpLatest": 1254140800000,
+    "gdpYear": "2024",
+    "populationLatest": 33702731,
     "population": {
       "2005": 2361236
     }
@@ -3199,6 +3658,9 @@
     "area": 36,
     "lat": 17.34,
     "lon": -62.769,
+    "gdpLatest": 1122388889,
+    "gdpYear": "2024",
+    "populationLatest": 46758,
     "population": {
       "2005": 49138
     }
@@ -3217,6 +3679,9 @@
     "area": 46,
     "lat": -4.647,
     "lon": 55.474,
+    "gdpLatest": 2228608684,
+    "gdpYear": "2024",
+    "populationLatest": 119773,
     "population": {
       "2005": 85532
     }
@@ -3235,6 +3700,9 @@
     "area": 121447,
     "lat": -30.558,
     "lon": 23.121,
+    "gdpLatest": 401144998374,
+    "gdpYear": "2024",
+    "populationLatest": 63212384,
     "population": {
       "2005": 47938663
     }
@@ -3253,6 +3721,9 @@
     "area": 3035,
     "lat": -29.581,
     "lon": 28.243,
+    "gdpLatest": 2391282548,
+    "gdpYear": "2024",
+    "populationLatest": 2311472,
     "population": {
       "2005": 1980831
     }
@@ -3271,6 +3742,9 @@
     "area": 56673,
     "lat": -22.182,
     "lon": 23.815,
+    "gdpLatest": 19286251068,
+    "gdpYear": "2024",
+    "populationLatest": 2480244,
     "population": {
       "2005": 1835938
     }
@@ -3289,6 +3763,9 @@
     "area": 19253,
     "lat": 15.013,
     "lon": -14.881,
+    "gdpLatest": 32169996052,
+    "gdpYear": "2024",
+    "populationLatest": 18077573,
     "population": {
       "2005": 1177034
     }
@@ -3307,6 +3784,9 @@
     "area": 2014,
     "lat": 46.124,
     "lon": 14.827,
+    "gdpLatest": 72972015197,
+    "gdpYear": "2024",
+    "populationLatest": 2120461,
     "population": {
       "2005": 1999425
     }
@@ -3325,6 +3805,9 @@
     "area": 7162,
     "lat": 8.56,
     "lon": -11.792,
+    "gdpLatest": 6971127234,
+    "gdpYear": "2024",
+    "populationLatest": 8460512,
     "population": {
       "2005": 5586403
     }
@@ -3343,6 +3826,9 @@
     "area": 67,
     "lat": 1.351,
     "lon": 103.808,
+    "gdpLatest": 572877260178,
+    "gdpYear": "2024",
+    "populationLatest": 5917648,
     "population": {
       "2005": 4327468
     }
@@ -3379,6 +3865,9 @@
     "area": 49904,
     "lat": 40.227,
     "lon": -3.649,
+    "gdpLatest": 1725671652742,
+    "gdpYear": "2024",
+    "populationLatest": 48352528,
     "population": {
       "2005": 43397491
     }
@@ -3397,6 +3886,9 @@
     "area": 61,
     "lat": 13.898,
     "lon": -60.969,
+    "gdpLatest": 2605148148,
+    "gdpYear": "2024",
+    "populationLatest": 179285,
     "population": {
       "2005": 16124
     }
@@ -3415,6 +3907,9 @@
     "area": 237600,
     "lat": 13.832,
     "lon": 30.05,
+    "gdpLatest": 49672435513,
+    "gdpYear": "2024",
+    "populationLatest": 50042791,
     "population": {
       "2005": 36899747
     }
@@ -3433,6 +3928,9 @@
     "area": 41033,
     "lat": 62.011,
     "lon": 15.27,
+    "gdpLatest": 604827393489,
+    "gdpYear": "2024",
+    "populationLatest": 10536632,
     "population": {
       "2005": 9038049
     }
@@ -3451,6 +3949,9 @@
     "area": 18378,
     "lat": 35.013,
     "lon": 38.506,
+    "gdpLatest": 23737634644,
+    "gdpYear": "2022",
+    "populationLatest": 23594623,
     "population": {
       "2005": 18893881
     }
@@ -3469,6 +3970,9 @@
     "area": 4000,
     "lat": 46.861,
     "lon": 7.908,
+    "gdpLatest": 969919786395,
+    "gdpYear": "2024",
+    "populationLatest": 8888822,
     "population": {
       "2005": 7424389
     }
@@ -3487,6 +3991,9 @@
     "area": 513,
     "lat": 10.468,
     "lon": -61.253,
+    "gdpLatest": 25633544529,
+    "gdpYear": "2024",
+    "populationLatest": 1367510,
     "population": {
       "2005": 1323722
     }
@@ -3505,6 +4012,9 @@
     "area": 51089,
     "lat": 15.7,
     "lon": 100.844,
+    "gdpLatest": 529385520942,
+    "gdpYear": "2024",
+    "populationLatest": 71702435,
     "population": {
       "2005": 63002911
     }
@@ -3523,6 +4033,9 @@
     "area": 13996,
     "lat": 38.665,
     "lon": 69.42,
+    "gdpLatest": 14425113700,
+    "gdpYear": "2024",
+    "populationLatest": 10389799,
     "population": {
       "2005": 6550213
     }
@@ -3559,6 +4072,9 @@
     "area": 72,
     "lat": -21.202,
     "lon": -175.185,
+    "gdpLatest": 647488244,
+    "gdpYear": "2024",
+    "populationLatest": 104597,
     "population": {
       "2005": 99361
     }
@@ -3577,6 +4093,9 @@
     "area": 5439,
     "lat": 8.799,
     "lon": 1.081,
+    "gdpLatest": 10643440332,
+    "gdpYear": "2024",
+    "populationLatest": 8223850,
     "population": {
       "2005": 6238572
     }
@@ -3595,6 +4114,9 @@
     "area": 96,
     "lat": 0.201,
     "lon": 6.629,
+    "gdpLatest": 824992558,
+    "gdpYear": "2024",
+    "populationLatest": 230871,
     "population": {
       "2005": 152622
     }
@@ -3613,6 +4135,9 @@
     "area": 15536,
     "lat": 35.383,
     "lon": 9.596,
+    "gdpLatest": 51412122480,
+    "gdpYear": "2024",
+    "populationLatest": 12200431,
     "population": {
       "2005": 10104685
     }
@@ -3631,6 +4156,9 @@
     "area": 76963,
     "lat": 39.061,
     "lon": 35.179,
+    "gdpLatest": 1359123768774,
+    "gdpYear": "2024",
+    "populationLatest": 85325965,
     "population": {
       "2005": 72969723
     }
@@ -3649,6 +4177,9 @@
     "area": 3,
     "lat": -8.514,
     "lon": 179.219,
+    "gdpLatest": 56752266,
+    "gdpYear": "2024",
+    "populationLatest": 9816,
     "population": {
       "2005": 10441
     }
@@ -3667,6 +4198,9 @@
     "area": 46993,
     "lat": 39.122,
     "lon": 59.384,
+    "gdpLatest": 44249447717,
+    "gdpYear": "2024",
+    "populationLatest": 7364438,
     "population": {
       "2005": 4833266
     }
@@ -3685,6 +4219,9 @@
     "area": 88359,
     "lat": -6.27,
     "lon": 34.823,
+    "gdpLatest": 79235713445,
+    "gdpYear": "2024",
+    "populationLatest": 66617606,
     "population": {
       "2005": 38477873
     }
@@ -3703,6 +4240,9 @@
     "area": 19710,
     "lat": 1.28,
     "lon": 32.386,
+    "gdpLatest": 53911907079,
+    "gdpYear": "2024",
+    "populationLatest": 48656601,
     "population": {
       "2005": 28947181
     }
@@ -3721,6 +4261,9 @@
     "area": 24193,
     "lat": 53,
     "lon": -1.6,
+    "gdpLatest": 3695539513534,
+    "gdpYear": "2024",
+    "populationLatest": 68526000,
     "population": {
       "2005": 60244834
     }
@@ -3739,6 +4282,9 @@
     "area": 57935,
     "lat": 49.016,
     "lon": 31.388,
+    "gdpLatest": 190833835445,
+    "gdpYear": "2024",
+    "populationLatest": 37732836,
     "population": {
       "2005": 46917544
     }
@@ -3757,6 +4303,9 @@
     "area": 915896,
     "lat": 39.622,
     "lon": -98.606,
+    "gdpLatest": 29298013000000,
+    "gdpYear": "2024",
+    "populationLatest": 336755052,
     "population": {
       "2005": 299846449
     }
@@ -3775,6 +4324,9 @@
     "area": 27360,
     "lat": 12.278,
     "lon": -1.74,
+    "gdpLatest": 23136514856,
+    "gdpYear": "2024",
+    "populationLatest": 23025776,
     "population": {
       "2005": 13933363
     }
@@ -3793,6 +4345,9 @@
     "area": 17502,
     "lat": -32.8,
     "lon": -56.012,
+    "gdpLatest": 82322859144,
+    "gdpYear": "2024",
+    "populationLatest": 3388081,
     "population": {
       "2005": 3325727
     }
@@ -3811,6 +4366,9 @@
     "area": 42540,
     "lat": 41.75,
     "lon": 63.17,
+    "gdpLatest": 121356065241,
+    "gdpYear": "2024",
+    "populationLatest": 35652307,
     "population": {
       "2005": 26593123
     }
@@ -3829,6 +4387,9 @@
     "area": 39,
     "lat": 13.248,
     "lon": -61.194,
+    "gdpLatest": 1157207407,
+    "gdpYear": "2024",
+    "populationLatest": 101323,
     "population": {
       "2005": 119137
     }
@@ -3847,6 +4408,9 @@
     "area": 88205,
     "lat": 7.125,
     "lon": -66.166,
+    "gdpLatest": 120566112397,
+    "gdpYear": "2024",
+    "populationLatest": 28300854,
     "population": {
       "2005": 26725573
     }
@@ -3865,6 +4429,7 @@
     "area": 15,
     "lat": 18.483,
     "lon": -64.39,
+    "populationLatest": 38985,
     "population": {
       "2005": 22016
     }
@@ -3883,6 +4448,9 @@
     "area": 32549,
     "lat": 21.491,
     "lon": 105.314,
+    "gdpLatest": 476324572784,
+    "gdpYear": "2024",
+    "populationLatest": 100352192,
     "population": {
       "2005": 85028643
     }
@@ -3901,6 +4469,9 @@
     "area": 35,
     "lat": 17.741,
     "lon": -64.785,
+    "gdpLatest": 4672000000,
+    "gdpYear": "2022",
+    "populationLatest": 104917,
     "population": {
       "2005": 111408
     }
@@ -3919,6 +4490,9 @@
     "area": 82329,
     "lat": -22.133,
     "lon": 17.218,
+    "gdpLatest": 13641190683,
+    "gdpYear": "2024",
+    "populationLatest": 2963095,
     "population": {
       "2005": 2019677
     }
@@ -3955,6 +4529,9 @@
     "area": 283,
     "lat": -13.652,
     "lon": -172.414,
+    "gdpLatest": 1175749786,
+    "gdpYear": "2024",
+    "populationLatest": 216663,
     "population": {
       "2005": 183845
     }
@@ -3973,6 +4550,9 @@
     "area": 1720,
     "lat": -26.562,
     "lon": 31.497,
+    "gdpLatest": 4858885841,
+    "gdpYear": "2024",
+    "populationLatest": 1230506,
     "population": {
       "2005": 1124529
     }
@@ -3991,6 +4571,7 @@
     "area": 52797,
     "lat": 15.807,
     "lon": 48.355,
+    "populationLatest": 39390799,
     "population": {
       "2005": 21095679
     }
@@ -4009,6 +4590,9 @@
     "area": 74339,
     "lat": -14.614,
     "lon": 26.32,
+    "gdpLatest": 25303185342,
+    "gdpYear": "2024",
+    "populationLatest": 20723965,
     "population": {
       "2005": 11478317
     }
@@ -4027,6 +4611,9 @@
     "area": 38685,
     "lat": -19,
     "lon": 29.872,
+    "gdpLatest": 41521975830,
+    "gdpYear": "2024",
+    "populationLatest": 16340822,
     "population": {
       "2005": 13119679
     }
@@ -4045,6 +4632,9 @@
     "area": 181157,
     "lat": -0.976,
     "lon": 114.252,
+    "gdpLatest": 1396301788462,
+    "gdpYear": "2024",
+    "populationLatest": 281190067,
     "population": {
       "2005": 226063044
     }
@@ -4099,6 +4689,9 @@
     "area": 8360,
     "lat": 23.549,
     "lon": 54.163,
+    "gdpLatest": 552324919096,
+    "gdpYear": "2024",
+    "populationLatest": 10483751,
     "population": {
       "2005": 4104291
     }
@@ -4117,6 +4710,9 @@
     "area": 1487,
     "lat": -8.822,
     "lon": 125.878,
+    "gdpLatest": 1865608515,
+    "gdpYear": "2024",
+    "populationLatest": 1384286,
     "population": {
       "2005": 1067285
     }
@@ -4153,6 +4749,9 @@
     "area": 0,
     "lat": 7.501,
     "lon": 134.57,
+    "gdpLatest": 321501813,
+    "gdpYear": "2024",
+    "populationLatest": 17727,
     "population": {
       "2005": 20127
     }
@@ -4171,6 +4770,9 @@
     "area": 0,
     "lat": 7.595,
     "lon": 168.963,
+    "gdpLatest": 285000000,
+    "gdpYear": "2024",
+    "populationLatest": 38827,
     "population": {
       "2005": 5672
     }
@@ -4225,6 +4827,9 @@
     "area": 0,
     "lat": 43.942,
     "lon": 12.46,
+    "gdpLatest": 2027243194,
+    "gdpYear": "2023",
+    "populationLatest": 33860,
     "population": {
       "2005": 30214
     }
@@ -4243,6 +4848,9 @@
     "area": 0,
     "lat": 21.902,
     "lon": -71.95,
+    "gdpLatest": 1745378000,
+    "gdpYear": "2024",
+    "populationLatest": 46198,
     "population": {
       "2005": 24459
     }
@@ -4279,6 +4887,9 @@
     "area": 0,
     "lat": 44.032,
     "lon": 20.806,
+    "gdpLatest": 90088366320,
+    "gdpYear": "2024",
+    "populationLatest": 6623183,
     "population": {
       "2005": 9863026
     }

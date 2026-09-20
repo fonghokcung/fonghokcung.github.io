@@ -8,7 +8,25 @@
   >
     <template #stage>
       <div ref="labelsRef" class="labels"></div>
-      <p class="empty-tip">点击国家选中 · 左键拖转 · 滚轮缩放</p>
+
+      <!-- 国家信息面板：1 国单列 / 2 国按点选顺序并排对比 -->
+      <div v-if="panel.visible" class="panel" :class="{ compare: panel.countries.length > 1 }">
+        <div class="panel-cols">
+          <div v-for="(c, i) in panel.countries" :key="c.name" class="panel-col">
+            <div class="panel-head">
+              <span class="pick-order">{{ i + 1 }}</span>
+              <span class="country-name">{{ c.nameZH }}</span>
+            </div>
+            <div class="country-en">{{ c.name }}</div>
+            <div v-for="row in panelRows" :key="row.key" class="row">
+              <span class="row-label">{{ row.label }}</span>
+              <span class="row-value">{{ row.format(c) }}</span>
+            </div>
+          </div>
+        </div>
+        <div v-if="panel.countries.length > 1" class="compare-tip">按点选顺序 · 点空白取消</div>
+      </div>
+      <p v-else class="empty-tip">点击国家查看指标 · Shift 点击对比两国</p>
     </template>
   </ThreeLayout>
 </template>
@@ -42,6 +60,58 @@ import countryData from '../assets/world-data/country-info.json';
 const layoutRef = ref(null);
 const labelsRef = ref(null);
 
+/* ===================== 国家信息面板（Vue 侧响应式） =====================
+ * 按点选先后顺序维护 selectedList（最多对比 2 国）；
+ * 渲染层（three/palette）完全不进响应式。
+ */
+const panel = ref({ visible: false, countries: [] });
+
+// 面板行定义：key + 展示名 + 格式化函数
+const fmtInt = (n) => new Intl.NumberFormat('zh-CN').format(n);
+// 金额（美元）人性化格式：万亿/亿单位
+const fmtUSD = (n) => {
+  if (n == null) return '—';
+  if (n >= 1e12) return `${(n / 1e12).toFixed(2)} 万亿`;
+  if (n >= 1e8) return `${(n / 1e8).toFixed(1)} 亿`;
+  return fmtInt(n);
+};
+const panelRows = [
+  {
+    key: 'gdpLatest',
+    label: 'GDP 总量',
+    format: (c) => fmtUSD(c.gdpLatest),
+  },
+  {
+    key: 'gdpPerCapita',
+    label: '人均 GDP',
+    format: (c) => {
+      if (!c.gdpLatest || !c.populationLatest) return '—';
+      return `${fmtInt(Math.round(c.gdpLatest / c.populationLatest))} 美元`;
+    },
+  },
+  { key: 'populationLatest', label: '人口（2023）', format: (c) => (c.populationLatest ? fmtInt(c.populationLatest) : '—') },
+  { key: 'population', label: '人口（2005）', format: (c) => fmtInt(c.population?.['2005'] ?? 0) },
+  {
+    key: 'growth',
+    label: '人口增长',
+    format: (c) => {
+      if (!c.populationLatest || !c.population?.['2005']) return '—';
+      const pct = ((c.populationLatest / c.population['2005'] - 1) * 100).toFixed(1);
+      return `${pct}%`;
+    },
+  },
+  { key: 'area', label: '国土面积（平方度）', format: (c) => fmtInt(c.area) },
+  {
+    key: 'density',
+    label: '人口密度',
+    format: (c) => {
+      if (!c.populationLatest || !c.area) return '—';
+      return `${(c.populationLatest / c.area).toFixed(1)} 人/平方度`;
+    },
+  },
+  { key: 'latlon', label: '代表点经纬度', format: (c) => `${c.lat.toFixed(1)}°, ${c.lon.toFixed(1)}°` },
+];
+
 let renderer = null;
 let scene = null;
 let camera = null;
@@ -56,6 +126,7 @@ let palette = null;
 let countryInfos = null;
 let loadedTextures = []; // 所有 loader.load 的纹理，dispose 时逐个释放
 let numCountriesSelected = 0;
+let pickCounter = 0; // 点选序号计数器：面板列顺序按点选先后排
 let renderPending = false; // 是否已有 render 在 rAF 队列里排队
 let rafId = 0;
 let disposed = false;
@@ -421,21 +492,36 @@ function pickCountry(event) {
     }
     numCountriesSelected += selected ? 1 : -1;
     countryInfo.selected = selected;
+    // 记录点选序号：面板列顺序按它排，取消中间某国后其余国家顺序不变
+    countryInfo.pickOrder = selected ? ++pickCounter : 0;
     // 只改调色板里 1 格颜色 → needsUpdate 重传 2KB —— 不重渲染任何几何
     setPaletteColor(id, selected ? SELECTED_COLOR : MAP_COLORS[countryColor[id - 1]]);
     paletteTexture.needsUpdate = true;
+    syncPanel();
   } else if (numCountriesSelected) {
     unselectAllCountries();
   }
   scheduleRender();
 }
 
+// 重建面板国家列表（按点选先后顺序排序）并同步可见性：
+//   选中 0 → 不展示；1 → 单国；2 → 两国对比；≥3 → 不展示
+// 无论当前是否展示，数组始终如实反映全部选中国家 ——
+// 这样 3 国取消 1 国（3→2）时面板立即以 2 国对比出现
+function syncPanel() {
+  panel.value.countries = countryInfos.filter((c) => c.selected).sort((a, b) => a.pickOrder - b.pickOrder);
+  panel.value.visible = numCountriesSelected >= 1 && numCountriesSelected <= 2;
+}
+
 function unselectAllCountries() {
   numCountriesSelected = 0;
+  pickCounter = 0;
   countryInfos.forEach((countryInfo) => {
     countryInfo.selected = false;
+    countryInfo.pickOrder = 0;
   });
   resetPalette();
+  syncPanel();
 }
 
 // —— 按需渲染（教程 debounce 版核心）：静止时不渲染，省电 ——
@@ -552,6 +638,102 @@ onBeforeUnmount(dispose);
     0 1px 0 #000,
     -1px 1px 0 #000,
     -1px 0 0 #000;
+}
+
+/* ---- 国家信息面板（1 国单列 / 2 国并排对比） ---- */
+.panel {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  width: 230px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 2px solid #333;
+  border-radius: 6px;
+  color: #222;
+}
+
+/* 对比态：面板放宽到两列 */
+.panel.compare {
+  width: 400px;
+}
+
+.panel-cols {
+  display: flex;
+  gap: 12px;
+}
+
+.panel-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-bottom: 4px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid #e5e0d5;
+}
+
+/* 点选顺序徽标 */
+.pick-order {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  font-size: 9px;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  background: var(--color2);
+  border-radius: 50%;
+}
+
+.country-name {
+  font-size: 14px;
+  font-weight: bold;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.country-en {
+  font-size: 10px;
+  color: #8a7f66;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 2;
+}
+
+.row-label {
+  color: #8a7f66;
+  flex-shrink: 0;
+}
+
+.row-value {
+  color: #222;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.compare-tip {
+  margin-top: 6px;
+  padding-top: 4px;
+  border-top: 1px dashed #e5e0d5;
+  font-size: 9px;
+  color: #b0a893;
+  text-align: center;
 }
 
 /* ---- 底部操作提示（同 DTwin 的 empty-tip 风格） ---- */
