@@ -1,24 +1,24 @@
 <script setup>
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import * as THREE from 'three'
-import triangleVert from './shaders/triangle.vert?raw'
-import theFrag from './shaders/cellular.frag?raw'
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import * as THREE from 'three';
+import triangleVert from './shaders/triangle.vert?raw';
+import theFrag from './shaders/triangle.frag?raw';
 
-const mountRef = ref(null)
+const mountRef = ref(null);
 
-let renderer, mesh, rafId, timer
+let renderer, mesh, rafId, timer;
 
 onMounted(() => {
-  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
-  renderer.setSize(800, 800 * 0.618)
-  mountRef.value.appendChild(renderer.domElement)
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  renderer.setSize(800, 800 * 0.618);
+  mountRef.value.appendChild(renderer.domElement);
 
-  const scene = new THREE.Scene()
-  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1)
-  timer = new THREE.Timer()
-  timer.connect(document)
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  timer = new THREE.Timer();
+  timer.connect(document);
 
-  const geometry = new THREE.PlaneGeometry(2, 2)
+  const geometry = new THREE.PlaneGeometry(2, 2);
 
   mesh = new THREE.Mesh(
     geometry,
@@ -31,25 +31,25 @@ onMounted(() => {
         },
       },
     }),
-  )
-  scene.add(mesh)
+  );
+  scene.add(mesh);
 
   function loop() {
-    rafId = requestAnimationFrame(loop)
-    timer.update()
-    mesh.material.uniforms.u_time.value = timer.getElapsed()
-    renderer.render(scene, camera)
+    rafId = requestAnimationFrame(loop);
+    timer.update();
+    mesh.material.uniforms.u_time.value = timer.getElapsed();
+    renderer.render(scene, camera);
   }
-  loop()
-})
+  loop();
+});
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(rafId)
-  renderer?.dispose()
-  mesh?.geometry?.dispose()
-  mesh?.material?.dispose()
-  renderer?.domElement?.remove()
-})
+  cancelAnimationFrame(rafId);
+  renderer?.dispose();
+  mesh?.geometry?.dispose();
+  mesh?.material?.dispose();
+  renderer?.domElement?.remove();
+});
 </script>
 
 <template>

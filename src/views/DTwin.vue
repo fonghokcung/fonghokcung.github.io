@@ -76,65 +76,65 @@
  *   UI → 场景：switchFloor / pollSelected / dispose
  *   场景 → UI：hooks.onSelect / onDeselect / onMetrics
  */
-import { onMounted, onUnmounted, ref } from 'vue'
-import { createWorkshopScene } from './dtwin/DTwinScene'
+import { onMounted, onUnmounted, ref } from 'vue';
+import { createWorkshopScene } from './dtwin/DTwinScene';
 
-const STATUS_TEXT = ['运行中', '告警', '停机']
+const STATUS_TEXT = ['运行中', '告警', '停机'];
 const rows = [
   { key: 'temp', label: '温度', unit: ' °C' },
   { key: 'rpm', label: '转速', unit: ' rpm' },
   { key: 'vib', label: '振动', unit: ' mm/s' },
   { key: 'out', label: '日产量', unit: ' 件' },
-]
+];
 
 /* ===================== Vue 侧状态 =====================
  * 只有「面板需要的原始字段」（primitive）进 ref；
  * three 对象与 TypedArray 都在 scene 模块里，绝不进响应式系统。
  */
-const floors = ['1F', '2F', '3F']
-const currentFloor = ref(0)
-const metrics = ref({ calls: 0, tris: 0 })
+const floors = ['1F', '2F', '3F'];
+const currentFloor = ref(0);
+const metrics = ref({ calls: 0, tris: 0 });
 const panel = ref({
   visible: false,
   updatedAt: '',
   device: { id: '', status: 0, temp: 0, rpm: 0, vib: 0, out: 0 },
-})
+});
 
-const stageRef = ref(null)
+const stageRef = ref(null);
 
 // 右侧文案面板收起/展开
-const txtCollapsed = ref(false)
+const txtCollapsed = ref(false);
 
 function statusText(s) {
-  return STATUS_TEXT[s] ?? '未知'
+  return STATUS_TEXT[s] ?? '未知';
 }
 
 /* ===================== 场景实例与 hooks 接线 ===================== */
-let workshop = null
+let workshop = null;
 
 // 场景 → UI：选中设备，把快照填进面板
 function handleSelect(snap) {
-  panel.value.device = snap
-  panel.value.updatedAt = new Date().toLocaleTimeString()
-  panel.value.visible = true
+  panel.value.device = snap;
+  panel.value.updatedAt = new Date().toLocaleTimeString();
+  panel.value.visible = true;
 }
 
 // 场景 → UI：取消选中，收起面板
 function handleDeselect() {
-  panel.value.visible = false
+  panel.value.visible = false;
 }
 
 // 场景 → UI：渲染指标（500ms 一次）
 function handleMetrics(calls, tris) {
-  metrics.value.calls = calls
-  metrics.value.tris = tris
+  metrics.value.calls = calls;
+  metrics.value.tris = tris;
 }
 
 /* ===================== UI → 场景 ===================== */
 function switchFloor(i) {
-  if (!workshop) return
-  currentFloor.value = i
-  workshop.switchFloor(i)
+  if (!workshop) return;
+  currentFloor.value = i;
+  workshop.switchFloor(i);
 }
 
 /* ===================== 生命周期 ===================== */
@@ -144,30 +144,30 @@ onMounted(() => {
     onSelect: handleSelect,
     onDeselect: handleDeselect,
     onMetrics: handleMetrics,
-  })
+  });
 
   // UI 层定时器：每秒向场景要一次选中设备快照（模拟 mock WebSocket 推送）
   dataTimer = setInterval(() => {
-    const snap = workshop?.pollSelected()
-    if (snap) handleSelect(snap)
-  }, 1000)
-})
+    const snap = workshop?.pollSelected();
+    if (snap) handleSelect(snap);
+  }, 1000);
+});
 
 /* 关键点：dispose 体系（UI 侧部分）
  * 定时器清掉 + 场景模块自身的 dispose（rAF/监听/GPU 资源/DOM）。
  * HMR 与路由来回切都不残留。
  */
-let dataTimer = null
+let dataTimer = null;
 
 function dispose() {
-  if (dataTimer) clearInterval(dataTimer)
-  dataTimer = null
-  panel.value.visible = false
-  workshop?.dispose()
-  workshop = null
+  if (dataTimer) clearInterval(dataTimer);
+  dataTimer = null;
+  panel.value.visible = false;
+  workshop?.dispose();
+  workshop = null;
 }
 
-onUnmounted(dispose)
+onUnmounted(dispose);
 </script>
 
 <style scoped>
