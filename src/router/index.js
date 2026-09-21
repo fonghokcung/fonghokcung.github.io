@@ -25,6 +25,12 @@ const router = createRouter({
       zh: 'The Earth',
       component: () => import('../views/TheEarth.vue'),
     },
+    {
+      path: '/manUal',
+      name: 'ManUal',
+      zh: 'ManUal',
+      component: () => import('../views/ManUal.vue'),
+    },
   ],
 });
 

@@ -12,6 +12,7 @@
  * 页面用它驱动 renderer.setSize / 相机 aspect 等自适应逻辑。
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import IconMoveRight from '@/components/icons/IconMoveRight.vue';
 
 const emit = defineEmits(['stage-resize']);
 
@@ -22,7 +23,7 @@ defineProps({
 });
 
 const stageRef = ref(null);
-const txtCollapsed = ref(false);
+const txtCollapsed = ref(true); // 默认收起：进入页面先看场景，需要说明再展开
 let resizeObserver = null;
 
 onMounted(() => {
@@ -69,19 +70,7 @@ defineExpose({ stageRef, txtCollapsed });
       @click="txtCollapsed = !txtCollapsed"
     >
       <!-- lucide move-right 图标：收起态用 transform 镜像成朝左 -->
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M18 8L22 12L18 16"></path>
-        <path d="M2 12H22"></path>
-      </svg>
+      <IconMoveRight />
     </button>
   </div>
 </template>

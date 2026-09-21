@@ -1,0 +1,59 @@
+<script setup>
+/**
+ * 原生 WebGL vs three.js 并排对比页：同一份 triangle.vert/frag，
+ * 左边裸 WebGL 手写全套管线，右边 three.js 托管——逐块对应看框架做了什么。
+ * 场景逻辑全部在 man/usewebgl.js 与 man/usethree.js，本组件只做挂载与清理。
+ */
+import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { useWebGLTriangle } from '@/views/man/usewebgl';
+import { useThreeTriangle } from '@/views/man/usethree';
+
+const webglCanvasRef = ref(null);
+const threeCanvasRef = ref(null);
+let disposeWebGL = null;
+let disposeThree = null;
+
+onMounted(() => {
+  disposeWebGL = useWebGLTriangle(webglCanvasRef.value);
+  disposeThree = useThreeTriangle(threeCanvasRef.value);
+});
+
+onBeforeUnmount(() => {
+  disposeWebGL?.();
+  disposeThree?.();
+  disposeWebGL = null;
+  disposeThree = null;
+});
+</script>
+<template>
+  <div class="ManUal__vue">
+    <section class="WebGL">
+      <canvas ref="webglCanvasRef"></canvas>
+    </section>
+    <section class="threejs">
+      <canvas ref="threeCanvasRef"></canvas>
+    </section>
+  </div>
+</template>
+<style scoped>
+.ManUal__vue {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  height: 100vh;
+  .WebGL,
+  .threejs {
+    position: relative;
+    display: block;
+    border: 10px solid var(--color-border);
+    min-width: 0;
+    min-height: 0;
+    /* canvas 铺满父级：块级默认 inline 基线会留缝，显式 block + 100% 尺寸 */
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: var(--color3);
+    }
+  }
+}
+</style>
