@@ -9,6 +9,9 @@
     <template #stage>
       <div ref="labelsRef" class="labels"></div>
 
+      <!-- 时钟按钮：左上角，每秒更新；点击切换「真实自转模式」（再点退出） -->
+      <button class="clock-btn" :class="{ spinning }" @click="toggleSpin">{{ nowText }}</button>
+
       <!-- 国家信息面板：1 国单列 / 2 国按点选顺序并排对比 -->
       <div v-if="panel.visible" class="panel" :class="{ compare: panel.countries.length > 1 }">
         <div class="panel-cols">
@@ -26,7 +29,7 @@
         </div>
         <div v-if="panel.countries.length > 1" class="compare-tip">按点选顺序 · 点空白取消</div>
       </div>
-      <p v-else class="empty-tip">点击国家查看指标 · Shift 点击对比两国</p>
+      <p v-else-if="!spinning" class="empty-tip">点击国家查看指标 · Shift 点击对比两国</p>
     </template>
   </ThreeLayout>
 </template>
@@ -59,6 +62,221 @@ import countryData from '@/assets/world-data/country-info.json';
 
 const layoutRef = ref(null);
 const labelsRef = ref(null);
+// 调试用：init() 里赋值，控制台可随时查看共享球几何（顶点数/索引数/attribute 布局）
+let geometry = null;
+
+/* 模拟日期：URL 查询串 ?date= 覆盖「今天」，用来模拟特定日期的太阳直射效果。
+ * 两种写法：
+ *   完整日期：?date=2026-06-21（- 或 / 分隔、单位数双数皆可），
+ *             解析成功后统一为标准「YYYY-MM-DD 双数」形态供展示
+ *   快捷序号：?date=1 春分 / 2 夏至 / 3 秋分 / 4 冬至（默认 2026 年）：
+ *             δ 各为 0 / +23.44 / 0 / -23.44，可快速对比晨昏线形态
+ * 无参数/非法 = 真实今天 */
+const SOLSTICE_DATES = ['03-20', '06-21', '09-23', '12-21']; // 1春分 2夏至 3秋分 4冬至
+const urlDate = new URLSearchParams(location.search).get('date') || '';
+const shortcut = /^[1-4]$/.test(urlDate) ? +urlDate : 0; // 快捷序号 1-4（0=非快捷）
+const dateMatch = urlDate.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+const simYear = dateMatch ? +dateMatch[1] : new Date().getFullYear();
+const ymdStr = shortcut
+  ? `${simYear}-${SOLSTICE_DATES[shortcut - 1]}` // 快捷序号 → 当年对应节气日
+  : dateMatch
+    ? `${dateMatch[1]}-${String(+dateMatch[2]).padStart(2, '0')}-${String(+dateMatch[3]).padStart(2, '0')}`
+    : null;
+const simDate = ymdStr ? new Date(+ymdStr.slice(0, 4), +ymdStr.slice(5, 7) - 1, +ymdStr.slice(8, 10), 12) : new Date();
+const simDateText = ymdStr;
+
+/* ===================== 左上角时钟按钮 ===================== */
+const nowText = ref('');
+let clockTimer = null;
+
+function fmtNow() {
+  const p = (n) => String(n).padStart(2, '0');
+  // 有 ?date= 时按钮显示解析后的标准双数日期；否则显示真实今天
+  const ymd = simDateText ?? `${simDate.getFullYear()}-${p(simDate.getMonth() + 1)}-${p(simDate.getDate())}`;
+  // 自转模式：日期 + 模拟速度（x.x 小时/秒，口径同 earth.mc665.cn）
+  if (spinning.value) return `${ymd} ${SPIN_HOURS_PER_SEC}小时/秒`;
+  return `${ymd} ${p(new Date().getHours())}:${p(new Date().getMinutes())}:${p(new Date().getSeconds())}`;
+}
+
+function startClock() {
+  nowText.value = fmtNow();
+  clockTimer = setInterval(() => {
+    nowText.value = fmtNow();
+  }, 1000);
+}
+
+function stopClock() {
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = null;
+}
+
+/* ===================== 真实自转模式 =====================
+ * 点击时钟按钮切换：地轴倾斜 23.44°（黄赤交角，J2000 精确值 23°26′21.4″）、
+ * controls 禁用（地轴倾斜后拖拽语义混乱）、渲染循环常开、
+ * 自转速度 = 每秒 18 经度（≈1.2 小时/秒，口径同 earth.mc665.cn；
+ * 真实地球 23h56m 转 360°）
+ * 自转模式下：昼夜光照生效、点选禁用、面板关闭并清空已选国家；
+ * 再点一次按钮退出：恢复正立姿态、按需渲染。
+ */
+const EARTH_TILT_DEG = 23.44;
+/* 模拟速度（度/真实秒）：18°/s ÷ 360° × 23.9345h（恒星日）≈ 1.2 小时/秒。
+ * 换算口径同 earth.mc665.cn 的「4.4 小时/秒」——每真实 1 秒，模拟时间推进多少小时。
+ * 供按钮文案展示；实际驱动旋转的仍是 SPIN_DEG_PER_SEC */
+const SPIN_DEG_PER_SEC = 18; // 每秒 18 经度 ≈ 1.2 小时/秒（真实地球 23h56m 转 360°）
+const SPIN_HOURS_PER_SEC = ((SPIN_DEG_PER_SEC / 360) * 23.9345).toFixed(1); // '1.2'
+let spinning = ref(false);
+let earthGroup = null; // 承载显示球的组：倾斜施加在组上，球只做 Y 轴自转
+let pickingGroup = null; // 拾取球所在组：每帧同步显示球的 rotation.y，保证拾取命中一致
+let axisLine = null; // 地轴线（自转模式显示的延长虚线轴）
+let spinRafId = 0;
+let spinLastT = 0;
+let sunLightUniform = null; // 材质里注入的 uLightOn uniform 引用（onBeforeCompile 时捕获）
+let sunDirVec = null; // 太阳方向向量（uniform 持有引用；startSpin 时按相机朝向重算）
+let bgMesh = null; // 自转模式渐变背景（挂在相机上的全屏平面，亮→暗沿太阳方向）
+let bgSunUniform = null; // 背景渐变方向的 uniform 引用（屏幕空间太阳方向，startSpin 时更新）
+const bgScreenTmp = new THREE.Vector3(); // 太阳方向→屏幕投影的计算中转（Vector3 方法链需要）
+
+/* ===================== 模式矩阵状态机（每模式一份完整快照） =====================
+ * 命名对应概念：
+ *   modeStates.idle.MCamera = 静止模式相机矩阵（用户可拖拽改变 → 离开静止态时刷新）
+ *   modeStates.spin.MCamera = 自转模式相机矩阵 = 初始机位（恒定，初始化时固化）
+ *   modeStates.*.MObj       = 地球对象矩阵状态（组倾斜 rotation.z + 球自转 rotation.y）
+ *
+ * 规则（与确认过的行为一一对应）：
+ * - 静止态：controls 拖拽只改 idle.MCamera（相机），MObj 不变
+ * - 切到自转：spin 的 MCamera/MObj 整组应用到相机/组/球
+ * - 自转中：每帧只累加 spin.MObj.meshSpinY（并应用到球）
+ * - 切回静止：idle 的 MCamera/MObj 整组恢复（球自转角保存在 spin.MObj 里，
+ *   静止态不碰它 → 「保持离开状态前的值」天然成立）
+ */
+const modeStates = {
+  idle: {
+    MCamera: null, // Matrix4：静止态相机矩阵（拖拽实时体现，离开静止态时 snapshot）
+    // 静止态地球姿态：正立 + 「用户离开静止态那一刻」的球自转角。
+    // meshSpinY 必须进快照：画面 = 相机×地球两个因子，只恢复相机会因地球
+    // 在自转期间转过角度而导致「回到原视角却看不到原来的国家」
+    MObj: { groupRotationZ: 0, meshSpinY: 0 },
+  },
+  spin: {
+    MCamera: null, // Matrix4：自转态相机矩阵 = 初始机位（初始化固化，恒定）
+    MObj: { groupRotationZ: THREE.MathUtils.degToRad(EARTH_TILT_DEG), meshSpinY: 0 }, // 倾斜+累计自转角
+  },
+};
+
+/* 太阳赤纬角（度）：Cooper 近似公式。
+ * δ = 23.44° × sin( 360°/365 × (N + 284) )，N = 一年中的第几天。
+ * 决定太阳直射点纬度 = δ，亦即晨昏线与经线的夹角。
+ * 春分 δ=0（晨昏线过两极⊥赤道）→ 夏至 +23.44°（北极极昼）→ 冬至 -23.44° */
+function solarDeclinationDeg(date) {
+  const start = new Date(date.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((date - start) / 86400000);
+  return 23.44 * Math.sin(((360 / 365) * (dayOfYear + 284) * Math.PI) / 180);
+}
+
+function toggleSpin() {
+  if (spinning.value) {
+    stopSpin();
+  } else {
+    startSpin();
+  }
+}
+
+function startSpin() {
+  if (!earthGroup || !sunDirVec || !modeStates.idle.MCamera) return;
+  spinning.value = true;
+  controls.enabled = false;
+  // 已选国家全部取消（自转模式下面板常关），palette 同步复位
+  unselectAllCountries();
+  panel.value.visible = false;
+  if (sunLightUniform) sunLightUniform.value = 1; // 开昼夜光照
+  bgMesh.visible = true; // 开渐变背景（亮→暗）
+  scene.background = null; // 纯色背景让位，避免盖不住渐变
+
+  /* —— 模式切换：应用 spin 模式快照 —— */
+  // ① 静止态完整快照：相机矩阵 + 地球姿态（用户此刻「看着美国」的完整视觉状态）
+  modeStates.idle.MCamera.copy(camera.matrixWorld);
+  modeStates.idle.MObj.meshSpinY = earthGroup.children[0].rotation.y;
+  // ② 自转态相机矩阵整组恢复（恒为初始机位）
+  modeStates.spin.MCamera.decompose(camera.position, camera.quaternion, camera.scale);
+  // ③ 自转态对象矩阵恢复：组倾斜 23.44°，球自转角用 spin 快照里累计的值
+  earthGroup.rotation.z = modeStates.spin.MObj.groupRotationZ;
+  earthGroup.children[0].rotation.y = modeStates.spin.MObj.meshSpinY;
+  if (pickingGroup) pickingGroup.children[0].rotation.y = modeStates.spin.MObj.meshSpinY;
+
+  // 太阳方向：水平分量取「屏幕左」，仰角 δ 沿【地轴】抬起（不是世界 +Y！）。
+  // 赤纬 δ 的物理定义 = 太阳方向与赤道面的夹角，合成必须基于赤道面：
+  //   ① 地轴（世界空间）= 地球组倾斜后的 +Y（上面 ③ 已应用倾斜，quaternion 即时同步）
+  //   ② 屏幕左方向投影到赤道面 → 「赤道面内的屏幕左」
+  //   ③ sunDir = ② × cos δ + 地轴 × sin δ（归一化）
+  // 若误用世界 +Y 当仰角基准：δ=0 时太阳方向世界水平 → 晨昏线是「世界竖直面」，
+  // 与倾斜 23.44° 的赤道面相交成 23.44° 锐角（秋分日晨昏线看起来歪 23° 的根源）；
+  // 正确基准下 δ=0 → 晨昏线过两极、⊥赤道；夏至 δ=+23.44° → 北极圈内极昼。
+  // δ 同时就是「晨昏线与经线的夹角」：晨昏线偏离极点 δ 度。
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  const camRight = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0, 1, 0)).normalize();
+  const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(earthGroup.quaternion).normalize();
+  const sunH = camRight.clone().multiplyScalar(-1); // 屏幕左（世界水平方向）
+  sunH.addScaledVector(axis, -sunH.dot(axis)).normalize(); // 投影进赤道面
+  const decl = THREE.MathUtils.degToRad(solarDeclinationDeg(simDate));
+  sunDirVec.copy(sunH).multiplyScalar(Math.cos(decl)).addScaledVector(axis, Math.sin(decl)).normalize();
+
+  // 背景渐变方向 = 太阳方向在屏幕空间的投影：世界向量变到相机视空间，
+  // 取 xy 分量即屏幕平面上的「指向太阳」；亮端指向太阳，渐变与光照方向严格一致。
+  // transformDirection 是 Vector3 的方法 → 用模块级临时向量算好再写回 Vector2 uniform
+  if (bgSunUniform) {
+    bgScreenTmp.copy(sunDirVec).transformDirection(camera.matrixWorldInverse);
+    bgSunUniform.value.set(bgScreenTmp.x, bgScreenTmp.y).normalize();
+  }
+  nowText.value = fmtNow(); // 按钮立刻切成「年月日 x.x小时/秒」，不等下一个 1s 时钟节拍
+  spinLastT = performance.now();
+  spinRafId = requestAnimationFrame(spinLoop);
+}
+
+function stopSpin() {
+  spinning.value = false;
+  cancelAnimationFrame(spinRafId);
+  spinRafId = 0;
+  controls.enabled = true;
+  if (sunLightUniform) sunLightUniform.value = 0; // 关昼夜光照，恢复平面无明暗
+  if (bgMesh) bgMesh.visible = false; // 关渐变背景
+  if (scene) scene.background = new THREE.Color('#246'); // 恢复纯色背景
+  if (earthGroup) {
+    /* —— 模式切换：应用 idle 模式快照 —— */
+    // ① 静止态相机矩阵恢复（「进自转前」的拖拽视角）
+    modeStates.idle.MCamera.decompose(camera.position, camera.quaternion, camera.scale);
+    // ② 静止态地球姿态恢复（离开静止时球的自转角）——相机×地球两个因子
+    //    都回到离开时的值，画面才会与「离开静止那一刻」完全一致
+    earthGroup.rotation.z = modeStates.idle.MObj.groupRotationZ;
+    earthGroup.children[0].rotation.y = modeStates.idle.MObj.meshSpinY;
+    if (pickingGroup) pickingGroup.children[0].rotation.y = modeStates.idle.MObj.meshSpinY;
+    // matrixWorld 立即重算：排队的 render 里 updateLabels 读的是矩阵，不更新会错一帧
+    earthGroup.updateMatrixWorld(true);
+    // controls 恢复接管：同步内部 target，避免与实际相机姿态错位
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+  nowText.value = fmtNow(); // 按钮立刻切回「年月日 时:分:秒」
+  scheduleRender();
+}
+
+function spinLoop(now) {
+  if (!spinning.value || !earthGroup) return;
+  const dt = Math.min((now - spinLastT) / 1000, 0.1); // 秒；后台切回防爆
+  spinLastT = now;
+  // 自转必须作用在球本身（组的局部 Y 轴才是地轴），倾斜由组的 rotation.z 提供；
+  // 拾取组同步同一角度，射线求交才能命中转过去的同一片国土。
+  // 累计值写回 spin.MObj.meshSpinY —— 模式快照里的自转角始终是最新的
+  const mesh = earthGroup.children[0];
+  modeStates.spin.MObj.meshSpinY += THREE.MathUtils.degToRad(SPIN_DEG_PER_SEC * dt);
+  mesh.rotation.y = modeStates.spin.MObj.meshSpinY;
+  if (pickingGroup) pickingGroup.children[0].rotation.y = mesh.rotation.y;
+  updateLabels();
+
+  renderer.render(scene, camera);
+
+  spinRafId = requestAnimationFrame(spinLoop);
+}
 
 /* ===================== 国家信息面板（Vue 侧响应式） =====================
  * 按点选先后顺序维护 selectedList（最多对比 2 国）；
@@ -157,6 +375,7 @@ const settings = {
 
 onMounted(() => {
   init();
+  startClock();
 });
 
 function init() {
@@ -168,10 +387,50 @@ function init() {
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color('#246');
+  // 自转模式渐变背景：全屏平面挂到相机上（scene.add(camera) 后才随相机渲染），
+  // 放在远平面内侧，永远垫在地球后面。渐变方向不写死——uSunScreen（屏幕空间
+  // 太阳方向）在 startSpin 时算好传入，亮端永远指向太阳来的一侧，与晨昏线方向一致
+  bgMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(1, 1),
+    new THREE.ShaderMaterial({
+      depthTest: false,
+      depthWrite: false,
+      uniforms: { uSunScreen: { value: new THREE.Vector2(-1, 0) } }, // 默认屏幕左亮
+      vertexShader: /* glsl */ `
+        varying vec2 vUv;
+        void main() {
+          vUv = uv;
+          gl_Position = vec4(position.xy * 2.0, 0.9999, 1.0); // ±0.5 → ±1(NDC)：铺满屏幕
+        }
+      `,
+      fragmentShader: /* glsl */ `
+        varying vec2 vUv;
+        uniform vec2 uSunScreen; // 太阳方向在屏幕空间的投影（NDC，y 上正）
+        void main() {
+          // 灰度渐变：太阳侧亮 rgb(200) → 对侧暗 rgb(10)
+          // NDC xy → 渐变坐标：沿 uSunScreen 投影，0=亮端 1=暗端
+          vec2 p = vUv * 2.0 - 1.0;                       // uv → NDC [-1,1]
+          vec2 s = normalize(uSunScreen);
+          float t = clamp(dot(p, s) * -0.5 + 0.5, 0.0, 1.0); // 太阳侧 0 → 背阳侧 1
+          float g = mix(200.0, 10.0, t) / 255.0;
+          gl_FragColor = vec4(vec3(g), 1.0);
+        }
+      `,
+    }),
+  );
+  bgMesh.visible = false; // 默认关：静止态仍用纯色 scene.background
+  bgSunUniform = bgMesh.material.uniforms.uSunScreen; // 捕获引用，startSpin 时更新渐变方向
+  bgMesh.frustumCulled = false;
+  bgMesh.renderOrder = -1;
+  camera.add(bgMesh);
+  scene.add(camera); // 相机的子对象必须相机本身在场景树里才会被渲染
 
   // —— 拾取场景：唯一内容是「索引贴图版」地球（每像素颜色 = 国家 ID） ——
   pickingScene = new THREE.Scene();
   pickingScene.background = new THREE.Color(0);
+  // 拾取球也放进同姿态的组：自转/倾斜时拾取几何必须与显示几何同步
+  pickingGroup = new THREE.Group();
+  pickingScene.add(pickingGroup);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio);
@@ -209,7 +468,7 @@ function init() {
   resetPalette();
 
   // —— 两个球共用同一个 SphereGeometry（几何数据只存一份） ——
-  const geometry = new THREE.SphereGeometry(1, 64, 32);
+  geometry = new THREE.SphereGeometry(1, 64, 32);
 
   const loader = new THREE.TextureLoader();
 
@@ -219,9 +478,10 @@ function init() {
   indexTexture.magFilter = THREE.NearestFilter;
   loadedTextures.push(indexTexture);
   const pickingMaterial = new THREE.MeshBasicMaterial({ map: indexTexture });
-  pickingScene.add(new THREE.Mesh(geometry, pickingMaterial));
+  pickingGroup.add(new THREE.Mesh(geometry, pickingMaterial));
 
-  // 显示球：国界线贴图 + onBeforeCompile 注入「索引→调色板」片元逻辑
+  // 显示球：国界线贴图 + onBeforeCompile 注入「索引→调色板」片元逻辑，
+  // 并叠加太阳光照（自转模式下亮暗面随晨昏线移动）
   const texture = loader.load(outlinesTextureUrl, () => scheduleRender());
   loadedTextures.push(texture);
   const material = new THREE.MeshBasicMaterial({ map: texture });
@@ -233,6 +493,9 @@ function init() {
         uniform sampler2D indexTexture;
         uniform sampler2D paletteTexture;
         uniform float paletteTextureWidth;
+        uniform vec3 uSunDir;      // 太阳方向（世界空间，指向太阳）
+        uniform float uLightOn;    // 1=昼夜光照开（自转模式） 0=关（静止态无明暗）
+        varying vec3 vWorldNormal; // 顶点着色器传下的世界空间法线
         `,
       )
       .replace(
@@ -246,12 +509,78 @@ function init() {
           diffuseColor.rgb = paletteColor.rgb - diffuseColor.rgb; // 相减 = 黑色国界线保留
         }
         `,
+      )
+      .replace(
+        '#include <dithering_fragment>',
+        `#include <dithering_fragment>
+        {
+          // Lambert 明暗：uLightOn=0 时 day 恒为 0？——不，mix(0.15,1,0)=0.15 全暗。
+          // 所以关灯时 JS 侧把 uLightOn 设 0，此处用 (1-uLightOn) 补回全亮：
+          // uLightOn=0 → factor=1（无明暗）；=1 → factor=day（昼夜）
+          float ndl = dot(normalize(vWorldNormal), normalize(uSunDir));
+          float day = smoothstep(-0.15, 0.25, ndl);
+          float factor = mix(1.0, mix(0.15, 1.0, day), uLightOn);
+          gl_FragColor.rgb *= factor;
+        }
+        `,
       );
     shader.uniforms.indexTexture = { value: indexTexture };
     shader.uniforms.paletteTexture = { value: paletteTexture };
     shader.uniforms.paletteTextureWidth = { value: PALETTE_W };
+    shader.uniforms.uSunDir = { value: SUN_DIR };
+    shader.uniforms.uLightOn = { value: 0 }; // 默认关：静止态无昼夜
+    sunLightUniform = shader.uniforms.uLightOn; // 捕获引用，供自转模式开关
   };
-  scene.add(new THREE.Mesh(geometry, material));
+  // 太阳方向向量（初始化占位；startSpin 时按「当前相机的屏幕左方」重算——
+  // 初始机位对准中国而非世界 +Z，「屏幕左」≠ 世界 -X，必须用相机右向量推导）
+  const SUN_DIR = new THREE.Vector3(-1, 0, 0);
+  sunDirVec = SUN_DIR;
+  // 顶点着色器补一段：把法线变到世界空间传给片元（MeshBasic 本身不带光照链）
+  material.onBeforeCompile = ((orig) => (shader) => {
+    orig(shader);
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\n varying vec3 vWorldNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vWorldNormal = normalize(mat3(modelMatrix) * normal);');
+  })(material.onBeforeCompile);
+  // 显示球与拾取球各进一个组：自转模式下两组同步 rotation.y，倾斜只加在显示组上
+  earthGroup = new THREE.Group();
+  earthGroup.add(new THREE.Mesh(geometry, material));
+  scene.add(earthGroup);
+
+  // 地轴线：贯穿南北极延长 35%，两种模式常显（自转时随组倾斜）。
+  // 颜色 = --color-primary（base.css 注释里的源值 #FBD509；GLSL 不认 CSS 变量，
+  // 简单场景直接写值，免去 getComputedStyle 桥接；若未来做主题切换再改桥接）
+  const axisColor = 0xfbd509;
+  const axisPts = [new THREE.Vector3(0, -1.35, 0), new THREE.Vector3(0, 1.35, 0)];
+  axisLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(axisPts), new THREE.LineBasicMaterial({ color: axisColor }));
+  earthGroup.add(axisLine);
+
+  // 纬线圈辅助线（赤道/南北极圈）：纬度 φ 的圆半径 = cos(φ)，高度 y = sin(φ)。
+  // 极圈纬度 = ±66.56°（90° − 黄赤交角 23.44°）
+  const helperColor = 0xfbd509;
+  const makeLatitudeCircle = (latDeg) => {
+    const lat = THREE.MathUtils.degToRad(latDeg);
+    const r = Math.cos(lat) * 1.005; // 1.005：略大于球面防 z-fighting
+    const y = Math.sin(lat);
+    const pts = [];
+    const SEGMENTS = 128;
+    for (let i = 0; i <= SEGMENTS; i++) {
+      const a = (i / SEGMENTS) * Math.PI * 2;
+      pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+    }
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({ color: helperColor }),
+    );
+    earthGroup.add(line);
+    return line;
+  };
+
+  // 赤道（0°）
+  makeLatitudeCircle(0);
+  // 北极圈 / 南极圈（±66.56°）
+  makeLatitudeCircle(66.56);
+  makeLatitudeCircle(-66.56);
 
   // —— 交互事件 ——
   canvas.addEventListener('pointerdown', recordStartTimeAndPosition);
@@ -392,6 +721,13 @@ function loadCountryData() {
   const angle = THREE.MathUtils.degToRad(chinaLon) + lonFudge + Math.PI;
   camera.position.set(Math.sin(angle) * cameraDistance, 0, Math.cos(angle) * cameraDistance);
   camera.lookAt(0, 0, 0);
+  // 初始机位定型：立即重算相机世界矩阵，初始化两种模式的 MCamera 快照——
+  //   spin.MCamera = 初始机位（恒定不变，自转模式专用）
+  //   idle.MCamera = 初始机位（此后随用户拖拽被覆盖 —— controls 改相机后，
+  //                  这里存的对象就是「静止态当下矩阵」的持有者）
+  camera.updateMatrixWorld(true);
+  modeStates.spin.MCamera = camera.matrixWorld.clone();
+  modeStates.idle.MCamera = camera.matrixWorld.clone();
   scheduleRender();
 }
 
@@ -406,6 +742,10 @@ function updateLabels() {
   const large = settings.minArea * settings.minArea;
   normalMatrix.getNormalMatrix(camera.matrixWorldInverse);
   camera.getWorldPosition(cameraPosition);
+  // 自转/倾斜时，position 是初始化烘焙的「本征位置」（未旋转），必须用
+  // 显示球当前的 world matrix 变换到世界空间；静止时矩阵是单位阵，结果不变
+  const mesh = earthGroup ? earthGroup.children[0] : null;
+  const earthMatrix = mesh ? mesh.matrixWorld : null;
 
   for (const countryInfo of countryInfos) {
     const { position, elem, area, selected } = countryInfo;
@@ -415,11 +755,14 @@ function updateLabels() {
       elem.style.display = 'none';
       continue;
     }
+    // 烘焙位置 → 当前世界位置（自转时随球转）
+    if (earthMatrix) tempV.copy(position).applyMatrix4(earthMatrix);
+    else tempV.copy(position);
     // 国土中心向量转到相机相对空间
-    tempV.copy(position);
     tempV.applyMatrix3(normalMatrix);
     // 该点指向相机的方向（相机空间）
-    cameraToPoint.copy(position);
+    if (earthMatrix) cameraToPoint.copy(position).applyMatrix4(earthMatrix);
+    else cameraToPoint.copy(position);
     cameraToPoint.applyMatrix4(camera.matrixWorldInverse).normalize();
     // 点积 > -0.2 → 已转到背面，隐藏（球边缘也能看到一点，所以阈值是负数）
     const dot = tempV.dot(cameraToPoint);
@@ -428,8 +771,9 @@ function updateLabels() {
       continue;
     }
     elem.style.display = '';
-    // 3D → NDC → CSS 像素
-    tempV.copy(position);
+    // 3D → NDC → CSS 像素（同样基于当前世界位置）
+    if (earthMatrix) tempV.copy(position).applyMatrix4(earthMatrix);
+    else tempV.copy(position);
     tempV.project(camera);
     const x = (tempV.x * 0.5 + 0.5) * canvas.clientWidth;
     const y = (tempV.y * -0.5 + 0.5) * canvas.clientHeight;
@@ -475,6 +819,7 @@ function recordStartTimeAndPosition(event) {
 
 function pickCountry(event) {
   if (!countryInfos) return;
+  if (spinning.value) return; // 自转模式：点选功能禁用
   // 按住太久或移动太多 = 拖拽旋转，不算点击
   const clickTimeMs = performance.now() - startTimeMs;
   if (clickTimeMs > MAX_CLICK_TIME_MS) return;
@@ -585,6 +930,7 @@ function dispose() {
   });
   loadedTextures.forEach((t) => t.dispose());
   loadedTextures = [];
+  bgMesh = null; // 几何/材质已随上面 scene.traverse（含 camera 子树）释放
   paletteTexture?.dispose();
   paletteTexture = null;
   if (pickingTexture) {
@@ -602,7 +948,11 @@ function dispose() {
   canvas = null;
 }
 
-onBeforeUnmount(dispose);
+onBeforeUnmount(() => {
+  stopClock();
+  if (spinning.value) stopSpin();
+  dispose();
+});
 </script>
 
 <style scoped>
@@ -638,6 +988,32 @@ onBeforeUnmount(dispose);
     0 1px 0 #000,
     -1px 1px 0 #000,
     -1px 0 0 #000;
+}
+
+/* ---- 左上角时钟按钮 ---- */
+.clock-btn {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 20;
+  font-size: 12px;
+  padding: 0 10px;
+  height: 30px;
+  line-height: 30px;
+  font-variant-numeric: tabular-nums; /* 等宽数字：秒跳动时不抖动 */
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  cursor: pointer; /* 可点击：切换自转模式 */
+  user-select: none;
+}
+
+/* 自转模式激活：--color-primary 黄底黑字，一眼可辨当前处于「真实自转」 */
+.clock-btn.spinning {
+  color: #000;
+  background: var(--color-primary);
+  border-color: #000;
 }
 
 /* ---- 国家信息面板（1 国单列 / 2 国并排对比） ---- */
