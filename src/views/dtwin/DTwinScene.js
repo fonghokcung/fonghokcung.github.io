@@ -17,10 +17,10 @@ import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 // 它不带自己的动画循环 —— group.update() 挂进宿主 rAF（见 loop）
 import { Group, Tween, Easing } from '@tweenjs/tween.js';
 import Stats from 'stats.js';
-// 着色器源码抽离到独立 .vert/.frag 文件（本目录 shaders/ 下），
+// 着色器源码抽离到独立 .vert/.frag 文件（项目统一放 src/shaders/ 下），
 // ?raw 由 Vite 内置支持：编译期把文件内容作为字符串内联，零运行时开销
-import deviceVert from './shaders/device.vert?raw';
-import deviceFrag from './shaders/device.frag?raw';
+import deviceVert from '@/shaders/device.vert?raw';
+import deviceFrag from '@/shaders/device.frag?raw';
 
 /* ===================== 场景规模常量 ===================== */
 const COLS = 25;

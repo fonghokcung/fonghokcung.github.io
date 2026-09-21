@@ -50,8 +50,8 @@
  *   场景 → UI：hooks.onSelect / onDeselect / onMetrics
  */
 import { onMounted, onUnmounted, ref } from 'vue';
-import ThreeLayout from '../components/ThreeLayout.vue';
-import { createWorkshopScene } from './dtwin/DTwinScene';
+import ThreeLayout from '@/components/ThreeLayout.vue';
+import { createWorkshopScene } from '@/views/dtwin/DTwinScene';
 
 const STATUS_TEXT = ['运行中', '告警', '停机'];
 const rows = [

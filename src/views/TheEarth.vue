@@ -43,9 +43,9 @@ import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import Stats from 'stats.js';
-import ThreeLayout from '../components/ThreeLayout.vue';
-import indexTextureUrl from '../assets/world-data/country-index-texture.png?url';
-import outlinesTextureUrl from '../assets/world-data/country-outlines-4k.png?url';
+import ThreeLayout from '@/components/ThreeLayout.vue';
+import indexTextureUrl from '@/assets/world-data/country-index-texture.png?url';
+import outlinesTextureUrl from '@/assets/world-data/country-outlines-4k.png?url';
 // JSON 直接静态导入（Vite 原生支持，编译期内联为模块）——不用 fetch(?url)
 // country-info.json 字段说明（以 China 为例）：
 // - name       "China"                    国名 → 标签 DOM 的 textContent
@@ -55,7 +55,7 @@ import outlinesTextureUrl from '../assets/world-data/country-outlines-4k.png?url
 // - area       932743                     预计算的国土面积（平方度）
 // - population {"2005": 1312978855}       各年份人口，本案例未使用
 // 消费入口：loadCountryData()；注意数组下标 + 1 = 索引贴图里的国家 ID（0 号留给海洋）
-import countryData from '../assets/world-data/country-info.json';
+import countryData from '@/assets/world-data/country-info.json';
 
 const layoutRef = ref(null);
 const labelsRef = ref(null);

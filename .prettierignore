@@ -1,0 +1,2 @@
+# GLSL 代码片段（非完整着色器，无法通过 glsl-parser 语法校验）
+src/components/shaders/birds/inject-*.vert

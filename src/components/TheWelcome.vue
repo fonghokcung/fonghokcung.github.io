@@ -1,8 +1,8 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
-import triangleVert from './shaders/triangle.vert?raw';
-import theFrag from './shaders/triangle.frag?raw';
+import triangleVert from '@/shaders/triangle.vert?raw';
+import theFrag from '@/shaders/triangle.frag?raw';
 
 const mountRef = ref(null);
 
