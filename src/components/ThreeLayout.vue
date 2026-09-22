@@ -23,7 +23,9 @@ defineProps({
 });
 
 const stageRef = ref(null);
-const txtCollapsed = ref(true); // 默认收起：进入页面先看场景，需要说明再展开
+// 面板宽度三态：初始 60（页面加载露出 60px 提示有面板）→ 点击 260（展开）
+// → 点击 0（收起）；一旦点过，只在 260 与 0 之间切换，不再回到 60
+const txtWidth = ref(60);
 let resizeObserver = null;
 
 onMounted(() => {
@@ -41,7 +43,12 @@ onBeforeUnmount(() => {
   resizeObserver = null;
 });
 
-defineExpose({ stageRef, txtCollapsed });
+// 点击切换：初始 30（露出一点）→ 260 展开；之后只在 260/0 间切换
+function toggleTxt() {
+  txtWidth.value = txtWidth.value === 260 ? 0 : 260;
+}
+
+defineExpose({ stageRef, txtWidth });
 </script>
 
 <template>
@@ -51,7 +58,7 @@ defineExpose({ stageRef, txtCollapsed });
       <slot name="stage" />
     </div>
 
-    <section class="txt" :class="{ collapsed: txtCollapsed }">
+    <section class="txt" :style="{ width: txtWidth + 'px' }">
       <div class="txt-body">
         <slot>
           <h2 class="txt-title">{{ txtTitle }}</h2>
@@ -61,15 +68,18 @@ defineExpose({ stageRef, txtCollapsed });
       </div>
     </section>
 
-    <!-- 收起/展开按钮：骑在文案面板左边缘，展开时箭头朝右(点击收起)，收起时朝左 -->
+    <!-- 收起/展开按钮：骑在面板左边缘。
+         箭头：展开态(260)朝右，初始露出态(60)与收起态(0)朝左（点击均展开）；
+         位置：仅宽度 0 时收进右缘 -->
     <button
       class="txt-toggle"
-      :class="{ collapsed: txtCollapsed }"
-      :title="txtCollapsed ? '展开说明' : '收起说明'"
-      :aria-label="txtCollapsed ? '展开说明' : '收起说明'"
-      @click="txtCollapsed = !txtCollapsed"
+      :class="{ mirror: txtWidth !== 260, collapsed: txtWidth === 0 }"
+      :style="{ right: txtWidth + 'px' }"
+      :title="txtWidth === 260 ? '收起说明' : '展开说明'"
+      :aria-label="txtWidth === 260 ? '收起说明' : '展开说明'"
+      @click="toggleTxt"
     >
-      <!-- lucide move-right 图标：收起态用 transform 镜像成朝左 -->
+      <!-- lucide move-right 图标：mirror 时 transform scaleX(-1) 朝左 -->
       <IconMoveRight />
     </button>
   </div>
@@ -97,9 +107,8 @@ defineExpose({ stageRef, txtCollapsed });
   display: block;
 }
 
-/* ---- 右侧文案说明 ---- */
+/* ---- 右侧文案说明（宽度由 txtWidth 内联驱动：60 初始 / 260 展开 / 0 收起） ---- */
 .txt {
-  width: 260px;
   flex-shrink: 0;
   background: var(--color-bg);
   color: #000;
@@ -108,31 +117,27 @@ defineExpose({ stageRef, txtCollapsed });
   transition: width 0.25s ease;
 }
 
-/* 收起态：宽度收到 0（按钮浮在场景上，不随布局挤压） */
-.txt.collapsed {
-  width: 0;
-}
-
 /* 固定内边距放在内层：宽度动画时文字内容不被挤压换行 */
 .txt-body {
   width: 260px;
   padding: 12px;
 }
 
-.txt-title {
+/* 文案元素由默认 slot 提供（父组件作用域），必须 :deep() 穿透才能命中 */
+.txt-body :deep(.txt-title) {
   font-size: 15px;
   font-weight: bold;
   color: #000;
 }
 
-.txt-sub {
+.txt-body :deep(.txt-sub) {
   margin-top: 8px;
   font-size: 11px;
   line-height: 1.7;
   color: #000;
 }
 
-.txt-hint {
+.txt-body :deep(.txt-hint) {
   margin-top: 14px;
   padding-top: 10px;
   border-top: 1px dashed #000;
@@ -170,14 +175,14 @@ defineExpose({ stageRef, txtCollapsed });
   transform: translate(0, -50%);
 }
 
-/* 图标：默认箭头朝右；收起态 scaleX(-1) 镜像成朝左 */
+/* 图标：展开态(260)箭头朝右；mirror（初始 60 / 收起 0）scaleX(-1) 朝左 */
 .txt-toggle svg {
   width: 14px;
   height: 14px;
   transition: transform 0.25s ease;
 }
 
-.txt-toggle.collapsed svg {
+.txt-toggle.mirror svg {
   transform: scaleX(-1);
 }
 </style>

@@ -11,7 +11,7 @@
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli \"src/**/*.{html,vue,css,scss,js,json}\""
   },
   "dependencies": {
     "@tweenjs/tween.js": "^25.0.0",

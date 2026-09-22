@@ -20,13 +20,17 @@
             {{ f }}
           </button>
         </div>
-        <div class="metrics">drawcall {{ metrics.calls }} · 三角形 {{ metrics.tris }}</div>
+        <div class="metrics">
+          drawcall {{ metrics.calls }} · 三角形 {{ metrics.tris }}
+        </div>
       </div>
 
       <div v-if="panel.visible" class="panel">
         <div class="panel-head">
           <span class="dev-id">{{ panel.device.id }}</span>
-          <span class="dev-status" :class="'s' + panel.device.status">{{ statusText(panel.device.status) }}</span>
+          <span class="dev-status" :class="'s' + panel.device.status">{{
+            statusText(panel.device.status)
+          }}</span>
         </div>
         <div class="row" v-for="r in rows" :key="r.key">
           <span class="label">{{ r.label }}</span>

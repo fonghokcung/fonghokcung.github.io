@@ -23,7 +23,11 @@ import basicthreejsFrag from '@/shaders/basicthreejs.frag?raw';
  */
 export function useThreeTriangle(canvas) {
   // alpha: true 帧缓冲带透明通道，与原生版 getContext('webgl') 行为对齐
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    alpha: true,
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.setClearColor(0x000000, 0); // 清屏成全透明 → CSS 背景（--color3）透出来
 

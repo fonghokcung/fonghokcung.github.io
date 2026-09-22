@@ -1,21 +1,37 @@
 <template>
-  <ThreeLayout
-    ref="layoutRef"
-    txt-title="地球"
-    txt-sub="复刻 threejs.org/manual/#indexed-textures：索引贴图 + 调色板纹理（点击国家蓝色高亮）+ GPU 拾取 + 国名标签投影。"
-    txt-hint="点击国家选中 · Shift/Ctrl 多选 · 点空白取消全部 · 右下角 FPS"
-    @stage-resize="scheduleRender"
-  >
+  <ThreeLayout ref="layoutRef" @stage-resize="scheduleRender">
+    <!-- 文案面板：显式指定默认 slot 自定义（替代 txt-title/sub/hint props） -->
+    <template #default>
+      <h2 class="txt-title">地球</h2>
+      <p class="txt-sub">
+        复刻 threejs.org/manual/#indexed-textures：索引贴图 +
+        调色板纹理（点击国家蓝色高亮）+ GPU 拾取 + 国名标签投影。
+      </p>
+      <p class="txt-hint">
+        点击国家选中 · Shift/Ctrl 多选 · 点空白取消全部 · 右下角 FPS
+      </p>
+    </template>
+
     <template #stage>
       <div ref="labelsRef" class="labels"></div>
 
       <!-- 时钟按钮：左上角，每秒更新；点击切换「真实自转模式」（再点退出） -->
-      <button class="clock-btn" :class="{ spinning }" @click="toggleSpin">{{ nowText }}</button>
+      <button class="clock-btn" :class="{ spinning }" @click="toggleSpin">
+        {{ nowText }}
+      </button>
 
       <!-- 国家信息面板：1 国单列 / 2 国按点选顺序并排对比 -->
-      <div v-if="panel.visible" class="panel" :class="{ compare: panel.countries.length > 1 }">
+      <div
+        v-if="panel.visible"
+        class="panel"
+        :class="{ compare: panel.countries.length > 1 }"
+      >
         <div class="panel-cols">
-          <div v-for="(c, i) in panel.countries" :key="c.name" class="panel-col">
+          <div
+            v-for="(c, i) in panel.countries"
+            :key="c.name"
+            class="panel-col"
+          >
             <div class="panel-head">
               <span class="pick-order">{{ i + 1 }}</span>
               <span class="country-name">{{ c.nameZH }}</span>
@@ -27,21 +43,26 @@
             </div>
           </div>
         </div>
-        <div v-if="panel.countries.length > 1" class="compare-tip">按点选顺序 · 点空白取消</div>
+        <div v-if="panel.countries.length > 1" class="compare-tip">
+          按点选顺序 · 点空白取消
+        </div>
       </div>
-      <p v-else-if="!spinning" class="empty-tip">点击国家查看指标 · Shift 点击对比两国</p>
+      <p v-else-if="!spinning" class="empty-tip">
+        点击国家查看指标 · Shift 点击对比两国
+      </p>
     </template>
   </ThreeLayout>
 </template>
 
 <script setup>
-// —— 案例架构总览（读懂本页只需这一段）——
-// 加载两张纹理 + 一份共享 geometry；
-// 拾取场景 = indexTexture 直出（像素即 ID）；
-// 显示场景 = outlinesTexture 底图 + onBeforeCompile 注入
-//   「indexTexture 查 ID → paletteTexture 查颜色 → 加减法合成国界线」；
-// palette 是绑着 Uint8Array 的 DataTexture，默认格 0 海洋蓝、其余灰，
-// 点击拾取到 ID 后把对应格 set 成 SELECTED_COLOR 并 needsUpdate 重传 2KB。
+/*
+ * 加载两张纹理 + 一份共享 geometry；
+ * 拾取场景 = indexTexture 直出（像素即 ID）；
+ * 显示场景 = outlinesTexture 底图 + onBeforeCompile 注入
+ *   「indexTexture 查 ID → paletteTexture 查颜色 → 加减法合成国界线」；
+ * palette 是绑着 Uint8Array 的 DataTexture，默认格 0 海洋蓝、其余灰，
+ * 点击拾取到 ID 后把对应格 set 成 SELECTED_COLOR 并 needsUpdate 重传 2KB。
+ */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -49,15 +70,6 @@ import Stats from 'stats.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
 import indexTextureUrl from '@/assets/world-data/country-index-texture.png?url';
 import outlinesTextureUrl from '@/assets/world-data/country-outlines-4k.png?url';
-// JSON 直接静态导入（Vite 原生支持，编译期内联为模块）——不用 fetch(?url)
-// country-info.json 字段说明（以 China 为例）：
-// - name       "China"                    国名 → 标签 DOM 的 textContent
-// - lat/lon    33.42 / 106.514            国土代表点 → 经三级旋转链换算成球面 3D 锚点
-// - min/max    [73.6,18.2]/[134.8,53.6]   国土包围盒的西南角/东北角 [经度, 纬度]
-//                                         → 只用来算 area：标签「画不画」（小国不显示防拥挤）
-// - area       932743                     预计算的国土面积（平方度）
-// - population {"2005": 1312978855}       各年份人口，本案例未使用
-// 消费入口：loadCountryData()；注意数组下标 + 1 = 索引贴图里的国家 ID（0 号留给海洋）
 import countryData from '@/assets/world-data/country-info.json';
 
 const layoutRef = ref(null);
@@ -82,7 +94,14 @@ const ymdStr = shortcut
   : dateMatch
     ? `${dateMatch[1]}-${String(+dateMatch[2]).padStart(2, '0')}-${String(+dateMatch[3]).padStart(2, '0')}`
     : null;
-const simDate = ymdStr ? new Date(+ymdStr.slice(0, 4), +ymdStr.slice(5, 7) - 1, +ymdStr.slice(8, 10), 12) : new Date();
+const simDate = ymdStr
+  ? new Date(
+      +ymdStr.slice(0, 4),
+      +ymdStr.slice(5, 7) - 1,
+      +ymdStr.slice(8, 10),
+      12,
+    )
+  : new Date();
 const simDateText = ymdStr;
 
 /* ===================== 左上角时钟按钮 ===================== */
@@ -92,7 +111,9 @@ let clockTimer = null;
 function fmtNow() {
   const p = (n) => String(n).padStart(2, '0');
   // 有 ?date= 时按钮显示解析后的标准双数日期；否则显示真实今天
-  const ymd = simDateText ?? `${simDate.getFullYear()}-${p(simDate.getMonth() + 1)}-${p(simDate.getDate())}`;
+  const ymd =
+    simDateText ??
+    `${simDate.getFullYear()}-${p(simDate.getMonth() + 1)}-${p(simDate.getDate())}`;
   // 自转模式：日期 + 模拟速度（x.x 小时/秒，口径同 earth.mc665.cn）
   if (spinning.value) return `${ymd} ${SPIN_HOURS_PER_SEC}小时/秒`;
   return `${ymd} ${p(new Date().getHours())}:${p(new Date().getMinutes())}:${p(new Date().getSeconds())}`;
@@ -135,6 +156,7 @@ let sunDirVec = null; // 太阳方向向量（uniform 持有引用；startSpin �
 let bgMesh = null; // 自转模式渐变背景（挂在相机上的全屏平面，亮→暗沿太阳方向）
 let bgSunUniform = null; // 背景渐变方向的 uniform 引用（屏幕空间太阳方向，startSpin 时更新）
 const bgScreenTmp = new THREE.Vector3(); // 太阳方向→屏幕投影的计算中转（Vector3 方法链需要）
+let sunRaysGroup = null; // 自转模式：canvas 左侧 4 条光线箭头（挂相机，指示阳光传播方向）
 
 /* ===================== 模式矩阵状态机（每模式一份完整快照） =====================
  * 命名对应概念：
@@ -159,7 +181,10 @@ const modeStates = {
   },
   spin: {
     MCamera: null, // Matrix4：自转态相机矩阵 = 初始机位（初始化固化，恒定）
-    MObj: { groupRotationZ: THREE.MathUtils.degToRad(EARTH_TILT_DEG), meshSpinY: 0 }, // 倾斜+累计自转角
+    MObj: {
+      groupRotationZ: THREE.MathUtils.degToRad(EARTH_TILT_DEG),
+      meshSpinY: 0,
+    }, // 倾斜+累计自转角
   },
 };
 
@@ -197,11 +222,16 @@ function startSpin() {
   modeStates.idle.MCamera.copy(camera.matrixWorld);
   modeStates.idle.MObj.meshSpinY = earthGroup.children[0].rotation.y;
   // ② 自转态相机矩阵整组恢复（恒为初始机位）
-  modeStates.spin.MCamera.decompose(camera.position, camera.quaternion, camera.scale);
+  modeStates.spin.MCamera.decompose(
+    camera.position,
+    camera.quaternion,
+    camera.scale,
+  );
   // ③ 自转态对象矩阵恢复：组倾斜 23.44°，球自转角用 spin 快照里累计的值
   earthGroup.rotation.z = modeStates.spin.MObj.groupRotationZ;
   earthGroup.children[0].rotation.y = modeStates.spin.MObj.meshSpinY;
-  if (pickingGroup) pickingGroup.children[0].rotation.y = modeStates.spin.MObj.meshSpinY;
+  if (pickingGroup)
+    pickingGroup.children[0].rotation.y = modeStates.spin.MObj.meshSpinY;
 
   // 太阳方向：水平分量取「屏幕左」，仰角 δ 沿【地轴】抬起（不是世界 +Y！）。
   // 赤纬 δ 的物理定义 = 太阳方向与赤道面的夹角，合成必须基于赤道面：
@@ -214,12 +244,20 @@ function startSpin() {
   // δ 同时就是「晨昏线与经线的夹角」：晨昏线偏离极点 δ 度。
   const camDir = new THREE.Vector3();
   camera.getWorldDirection(camDir);
-  const camRight = new THREE.Vector3().crossVectors(camDir, new THREE.Vector3(0, 1, 0)).normalize();
-  const axis = new THREE.Vector3(0, 1, 0).applyQuaternion(earthGroup.quaternion).normalize();
+  const camRight = new THREE.Vector3()
+    .crossVectors(camDir, new THREE.Vector3(0, 1, 0))
+    .normalize();
+  const axis = new THREE.Vector3(0, 1, 0)
+    .applyQuaternion(earthGroup.quaternion)
+    .normalize();
   const sunH = camRight.clone().multiplyScalar(-1); // 屏幕左（世界水平方向）
   sunH.addScaledVector(axis, -sunH.dot(axis)).normalize(); // 投影进赤道面
   const decl = THREE.MathUtils.degToRad(solarDeclinationDeg(simDate));
-  sunDirVec.copy(sunH).multiplyScalar(Math.cos(decl)).addScaledVector(axis, Math.sin(decl)).normalize();
+  sunDirVec
+    .copy(sunH)
+    .multiplyScalar(Math.cos(decl))
+    .addScaledVector(axis, Math.sin(decl))
+    .normalize();
 
   // 背景渐变方向 = 太阳方向在屏幕空间的投影：世界向量变到相机视空间，
   // 取 xy 分量即屏幕平面上的「指向太阳」；亮端指向太阳，渐变与光照方向严格一致。
@@ -228,6 +266,8 @@ function startSpin() {
     bgScreenTmp.copy(sunDirVec).transformDirection(camera.matrixWorldInverse);
     bgSunUniform.value.set(bgScreenTmp.x, bgScreenTmp.y).normalize();
   }
+  sunRaysGroup.visible = true;
+  updateSunRays(); // 箭头方向与位置按同一屏幕投影刷新
   nowText.value = fmtNow(); // 按钮立刻切成「年月日 x.x小时/秒」，不等下一个 1s 时钟节拍
   spinLastT = performance.now();
   spinRafId = requestAnimationFrame(spinLoop);
@@ -240,16 +280,22 @@ function stopSpin() {
   controls.enabled = true;
   if (sunLightUniform) sunLightUniform.value = 0; // 关昼夜光照，恢复平面无明暗
   if (bgMesh) bgMesh.visible = false; // 关渐变背景
+  if (sunRaysGroup) sunRaysGroup.visible = false; // 关光线箭头
   if (scene) scene.background = new THREE.Color('#246'); // 恢复纯色背景
   if (earthGroup) {
     /* —— 模式切换：应用 idle 模式快照 —— */
     // ① 静止态相机矩阵恢复（「进自转前」的拖拽视角）
-    modeStates.idle.MCamera.decompose(camera.position, camera.quaternion, camera.scale);
+    modeStates.idle.MCamera.decompose(
+      camera.position,
+      camera.quaternion,
+      camera.scale,
+    );
     // ② 静止态地球姿态恢复（离开静止时球的自转角）——相机×地球两个因子
     //    都回到离开时的值，画面才会与「离开静止那一刻」完全一致
     earthGroup.rotation.z = modeStates.idle.MObj.groupRotationZ;
     earthGroup.children[0].rotation.y = modeStates.idle.MObj.meshSpinY;
-    if (pickingGroup) pickingGroup.children[0].rotation.y = modeStates.idle.MObj.meshSpinY;
+    if (pickingGroup)
+      pickingGroup.children[0].rotation.y = modeStates.idle.MObj.meshSpinY;
     // matrixWorld 立即重算：排队的 render 里 updateLabels 读的是矩阵，不更新会错一帧
     earthGroup.updateMatrixWorld(true);
     // controls 恢复接管：同步内部 target，避免与实际相机姿态错位
@@ -268,14 +314,56 @@ function spinLoop(now) {
   // 拾取组同步同一角度，射线求交才能命中转过去的同一片国土。
   // 累计值写回 spin.MObj.meshSpinY —— 模式快照里的自转角始终是最新的
   const mesh = earthGroup.children[0];
-  modeStates.spin.MObj.meshSpinY += THREE.MathUtils.degToRad(SPIN_DEG_PER_SEC * dt);
+  modeStates.spin.MObj.meshSpinY += THREE.MathUtils.degToRad(
+    SPIN_DEG_PER_SEC * dt,
+  );
   mesh.rotation.y = modeStates.spin.MObj.meshSpinY;
   if (pickingGroup) pickingGroup.children[0].rotation.y = mesh.rotation.y;
+  updateSunRays(); // 相机恒定但窗口比例可变，位置随视口高度自适应
   updateLabels();
 
   renderer.render(scene, camera);
 
   spinRafId = requestAnimationFrame(spinLoop);
+}
+
+// canvas 左缘 4 条光线箭头：方向 = 光线传播方向 = 太阳方向的反向
+// （阳光从太阳射向地球：箭头指向 = -uSunScreen）。相机空间 z=-1 平面处，
+// NDC 半高 1 对应相机空间 y=±tan(fov/2)，据此把 NDC 位置换算成相机空间坐标，
+// 窗口变高矮时箭头仍贴着左缘排布
+function updateSunRays() {
+  if (!sunRaysGroup || !bgSunUniform) return;
+  const dir = bgSunUniform.value; // 屏幕空间「指向太阳」
+  // 传播方向 = 指向太阳的反向；相机空间 z=-1 处直接用该 2D 方向
+  const prop = new THREE.Vector3(-dir.x, -dir.y, 0).normalize();
+  const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)); // z=-1 平面的相机空间半高
+  const halfW = halfH * camera.aspect; // 半宽：NDC x=±1 对应的相机空间 x（宽屏比半高大得多）
+  // 赤道屏幕高度实测（不猜偏移量）：取赤道正对相机的点（世界空间 = 地轴×相机右向量，
+  // 即倾斜赤道圈上最靠近观察者的点）投影到 NDC，其 y 就是「赤道在画面里的高度」，
+  // 箭头组中心直接用它 —— 无论倾斜多少度都精确对准
+  const equatorWorld = new THREE.Vector3(0, 1, 0)
+    .applyQuaternion(earthGroup.quaternion)
+    .normalize(); // 地轴
+  const camDir = new THREE.Vector3();
+  camera.getWorldDirection(camDir);
+  const camRight = new THREE.Vector3()
+    .crossVectors(camDir, new THREE.Vector3(0, 1, 0))
+    .normalize();
+  equatorWorld.cross(camRight).normalize().multiplyScalar(1.0); // 赤道圈上正对相机的那一点（半径 1）
+  sunRaysGroup.children.forEach((arrow, i) => {
+    arrow.setDirection(prop);
+    // 4 支沿「垂直于光线方向」的短线均匀排开：
+    // 横向 NDC x≈-0.66（地球左缘 NDC≈-0.39 的外侧，再远一丢丢）；
+    // 纵向中心 = 实测赤道屏幕高度，±0.33 半高对称排开
+    const perp = new THREE.Vector3(-prop.y, prop.x, 0);
+    const center = new THREE.Vector3(
+      -0.8 * halfW,
+      0.5 * halfH,
+      -1,
+    ).addScaledVector(perp, halfH * (0.33 - i * 0.22));
+    arrow.position.copy(center);
+    arrow.setLength(0.09 * halfH, 0.028 * halfH, 0.014 * halfH);
+  });
 }
 
 /* ===================== 国家信息面板（Vue 侧响应式） =====================
@@ -307,14 +395,25 @@ const panelRows = [
       return `${fmtInt(Math.round(c.gdpLatest / c.populationLatest))} 美元`;
     },
   },
-  { key: 'populationLatest', label: '人口（2023）', format: (c) => (c.populationLatest ? fmtInt(c.populationLatest) : '—') },
-  { key: 'population', label: '人口（2005）', format: (c) => fmtInt(c.population?.['2005'] ?? 0) },
+  {
+    key: 'populationLatest',
+    label: '人口（2023）',
+    format: (c) => (c.populationLatest ? fmtInt(c.populationLatest) : '—'),
+  },
+  {
+    key: 'population',
+    label: '人口（2005）',
+    format: (c) => fmtInt(c.population?.['2005'] ?? 0),
+  },
   {
     key: 'growth',
     label: '人口增长',
     format: (c) => {
       if (!c.populationLatest || !c.population?.['2005']) return '—';
-      const pct = ((c.populationLatest / c.population['2005'] - 1) * 100).toFixed(1);
+      const pct = (
+        (c.populationLatest / c.population['2005'] - 1) *
+        100
+      ).toFixed(1);
       return `${pct}%`;
     },
   },
@@ -327,7 +426,11 @@ const panelRows = [
       return `${(c.populationLatest / c.area).toFixed(1)} 人/平方度`;
     },
   },
-  { key: 'latlon', label: '代表点经纬度', format: (c) => `${c.lat.toFixed(1)}°, ${c.lon.toFixed(1)}°` },
+  {
+    key: 'latlon',
+    label: '代表点经纬度',
+    format: (c) => `${c.lat.toFixed(1)}°, ${c.lon.toFixed(1)}°`,
+  },
 ];
 
 let renderer = null;
@@ -424,6 +527,27 @@ function init() {
   bgMesh.renderOrder = -1;
   camera.add(bgMesh);
   scene.add(camera); // 相机的子对象必须相机本身在场景树里才会被渲染
+
+  // —— 自转模式光线指示：canvas 左缘 4 条平行箭头（阳光传播方向）——
+  // 挂在相机上（相机空间）：位置恒在画面左侧不随地球转，方向在 startSpin 时
+  // 按「太阳方向在屏幕空间的投影」统一旋转。ArrowHelper：线杆 + 锥头
+  sunRaysGroup = new THREE.Group();
+  const RAY_COUNT = 4;
+  for (let i = 0; i < RAY_COUNT; i++) {
+    const arrow = new THREE.ArrowHelper(
+      new THREE.Vector3(1, 0, 0),
+      new THREE.Vector3(),
+      1,
+      0xfbd509,
+      0.16,
+      0.08,
+    );
+    arrow.position.set(-0.92, 0.45 - i * 0.3, -1); // 左缘自上而下排开；z=-1 在相机正前方
+    arrow.renderOrder = 5; // 画在渐变背景之上
+    sunRaysGroup.add(arrow);
+  }
+  sunRaysGroup.visible = false;
+  camera.add(sunRaysGroup);
 
   // —— 拾取场景：唯一内容是「索引贴图版」地球（每像素颜色 = 国家 ID） ——
   pickingScene = new THREE.Scene();
@@ -539,8 +663,14 @@ function init() {
   material.onBeforeCompile = ((orig) => (shader) => {
     orig(shader);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n varying vec3 vWorldNormal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\n vWorldNormal = normalize(mat3(modelMatrix) * normal);');
+      .replace(
+        '#include <common>',
+        '#include <common>\n varying vec3 vWorldNormal;',
+      )
+      .replace(
+        '#include <begin_vertex>',
+        '#include <begin_vertex>\n vWorldNormal = normalize(mat3(modelMatrix) * normal);',
+      );
   })(material.onBeforeCompile);
   // 显示球与拾取球各进一个组：自转模式下两组同步 rotation.y，倾斜只加在显示组上
   earthGroup = new THREE.Group();
@@ -551,8 +681,14 @@ function init() {
   // 颜色 = --color-primary（base.css 注释里的源值 #FBD509；GLSL 不认 CSS 变量，
   // 简单场景直接写值，免去 getComputedStyle 桥接；若未来做主题切换再改桥接）
   const axisColor = 0xfbd509;
-  const axisPts = [new THREE.Vector3(0, -1.35, 0), new THREE.Vector3(0, 1.35, 0)];
-  axisLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(axisPts), new THREE.LineBasicMaterial({ color: axisColor }));
+  const axisPts = [
+    new THREE.Vector3(0, -1.35, 0),
+    new THREE.Vector3(0, 1.35, 0),
+  ];
+  axisLine = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(axisPts),
+    new THREE.LineBasicMaterial({ color: axisColor }),
+  );
   earthGroup.add(axisLine);
 
   // 纬线圈辅助线（赤道/南北极圈）：纬度 φ 的圆半径 = cos(φ)，高度 y = sin(φ)。
@@ -719,7 +855,11 @@ function loadCountryData() {
   const cameraDistance = 2.5;
   const chinaLon = countryInfos.find((c) => c.name === 'China')?.lon ?? 105;
   const angle = THREE.MathUtils.degToRad(chinaLon) + lonFudge + Math.PI;
-  camera.position.set(Math.sin(angle) * cameraDistance, 0, Math.cos(angle) * cameraDistance);
+  camera.position.set(
+    Math.sin(angle) * cameraDistance,
+    0,
+    Math.cos(angle) * cameraDistance,
+  );
   camera.lookAt(0, 0, 0);
   // 初始机位定型：立即重算相机世界矩阵，初始化两种模式的 MCamera 快照——
   //   spin.MCamera = 初始机位（恒定不变，自转模式专用）
@@ -786,7 +926,14 @@ function updateLabels() {
 function pickAt(cssX, cssY) {
   const pixelRatio = renderer.getPixelRatio();
   const dbSize = renderer.getDrawingBufferSize(new THREE.Vector2());
-  camera.setViewOffset(dbSize.x, dbSize.y, Math.floor(cssX * pixelRatio), Math.floor(cssY * pixelRatio), 1, 1);
+  camera.setViewOffset(
+    dbSize.x,
+    dbSize.y,
+    Math.floor(cssX * pixelRatio),
+    Math.floor(cssY * pixelRatio),
+    1,
+    1,
+  );
   renderer.setRenderTarget(pickingTexture);
   renderer.render(pickingScene, camera);
   renderer.setRenderTarget(null);
@@ -824,7 +971,8 @@ function pickCountry(event) {
   const clickTimeMs = performance.now() - startTimeMs;
   if (clickTimeMs > MAX_CLICK_TIME_MS) return;
   const position = getCanvasRelativePosition(event);
-  const moveDeltaSq = (startPosition.x - position.x) ** 2 + (startPosition.y - position.y) ** 2;
+  const moveDeltaSq =
+    (startPosition.x - position.x) ** 2 + (startPosition.y - position.y) ** 2;
   if (moveDeltaSq > MAX_MOVE_DELTA_SQ) return;
 
   const id = pickAt(position.x, position.y);
@@ -840,7 +988,10 @@ function pickCountry(event) {
     // 记录点选序号：面板列顺序按它排，取消中间某国后其余国家顺序不变
     countryInfo.pickOrder = selected ? ++pickCounter : 0;
     // 只改调色板里 1 格颜色 → needsUpdate 重传 2KB —— 不重渲染任何几何
-    setPaletteColor(id, selected ? SELECTED_COLOR : MAP_COLORS[countryColor[id - 1]]);
+    setPaletteColor(
+      id,
+      selected ? SELECTED_COLOR : MAP_COLORS[countryColor[id - 1]],
+    );
     paletteTexture.needsUpdate = true;
     syncPanel();
   } else if (numCountriesSelected) {
@@ -854,7 +1005,9 @@ function pickCountry(event) {
 // 无论当前是否展示，数组始终如实反映全部选中国家 ——
 // 这样 3 国取消 1 国（3→2）时面板立即以 2 国对比出现
 function syncPanel() {
-  panel.value.countries = countryInfos.filter((c) => c.selected).sort((a, b) => a.pickOrder - b.pickOrder);
+  panel.value.countries = countryInfos
+    .filter((c) => c.selected)
+    .sort((a, b) => a.pickOrder - b.pickOrder);
   panel.value.visible = numCountriesSelected >= 1 && numCountriesSelected <= 2;
 }
 
@@ -931,6 +1084,8 @@ function dispose() {
   loadedTextures.forEach((t) => t.dispose());
   loadedTextures = [];
   bgMesh = null; // 几何/材质已随上面 scene.traverse（含 camera 子树）释放
+  bgSunUniform = null;
+  sunRaysGroup = null;
   paletteTexture?.dispose();
   paletteTexture = null;
   if (pickingTexture) {

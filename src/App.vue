@@ -10,10 +10,18 @@ const routes = router.options.routes;
     <header class="theNav">
       <div class="wrapper">
         <nav>
-          <RouterLink v-for="route in routes" :key="route.name" :to="route.path" :aria-label="route.zh">
+          <RouterLink
+            v-for="route in routes"
+            :key="route.name"
+            :to="route.path"
+            :aria-label="route.zh"
+          >
             <span class="fresh-rolling-text" aria-hidden="true">
               <span class="fresh-rolling-text-copy">{{ route.zh }}</span>
-              <span class="fresh-rolling-text-copy fresh-rolling-text-copy--incoming">{{ route.zh }}</span>
+              <span
+                class="fresh-rolling-text-copy fresh-rolling-text-copy--incoming"
+                >{{ route.zh }}</span
+              >
             </span>
           </RouterLink>
         </nav>

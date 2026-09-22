@@ -34,7 +34,11 @@ export const FLOORS = ['1F', '2F', '3F'];
 const FLOOR_COLORS = ['#36340b', '#360b0d', '#0b0d36'];
 
 // 设备状态：0 运行 / 1 告警 / 2 停机
-const STATUS_COLORS = [new THREE.Color('#3fae6a'), new THREE.Color('#e2483d'), new THREE.Color('#9aa0a6')];
+const STATUS_COLORS = [
+  new THREE.Color('#3fae6a'),
+  new THREE.Color('#e2483d'),
+  new THREE.Color('#9aa0a6'),
+];
 
 /* ===================== 工厂函数 ===================== */
 export function createWorkshopScene(container, hooks = {}) {
@@ -131,8 +135,14 @@ export function createWorkshopScene(container, hooks = {}) {
     machineHeight = geometry.boundingBox.max.y;
 
     // —— 逐实例 attribute：随几何体走，一个 buffer 搞定全部容量 ——
-    const aAlarm = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1); // 1=告警（itemSize=1 → 只许 setX）
-    const aPhase = new THREE.InstancedBufferAttribute(new Float32Array(CAPACITY), 1);
+    const aAlarm = new THREE.InstancedBufferAttribute(
+      new Float32Array(CAPACITY),
+      1,
+    ); // 1=告警（itemSize=1 → 只许 setX）
+    const aPhase = new THREE.InstancedBufferAttribute(
+      new Float32Array(CAPACITY),
+      1,
+    );
     for (let i = 0; i < CAPACITY; i++) {
       aPhase.setX(i, Math.random() * Math.PI * 2); // 随机相位：呼吸错峰，不同步齐闪
     }
@@ -140,7 +150,12 @@ export function createWorkshopScene(container, hooks = {}) {
     geometry.setAttribute('aPhase', aPhase);
 
     // 相机：初始高高在上俯视车间地面
-    camera = new THREE.PerspectiveCamera(55, container.clientWidth / container.clientHeight, 0.1, 300);
+    camera = new THREE.PerspectiveCamera(
+      55,
+      container.clientWidth / container.clientHeight,
+      0.1,
+      300,
+    );
     camera.position.copy(HOME_POS);
 
     scene = new THREE.Scene();
@@ -184,8 +199,15 @@ export function createWorkshopScene(container, hooks = {}) {
     scene.add(mesh);
 
     // 选中描边：EdgesGeometry 线框，比 OutlinePass 后处理便宜得多
-    const eg = new THREE.BoxGeometry(1.5 + 0.16, machineHeight + 0.16, 1.0 + 0.16);
-    edgesMesh = new THREE.LineSegments(new THREE.EdgesGeometry(eg), new THREE.LineBasicMaterial({ color: '#ffb020' }));
+    const eg = new THREE.BoxGeometry(
+      1.5 + 0.16,
+      machineHeight + 0.16,
+      1.0 + 0.16,
+    );
+    edgesMesh = new THREE.LineSegments(
+      new THREE.EdgesGeometry(eg),
+      new THREE.LineBasicMaterial({ color: '#ffb020' }),
+    );
     eg.dispose();
     edgesMesh.visible = false;
     scene.add(edgesMesh);
@@ -273,7 +295,11 @@ export function createWorkshopScene(container, hooks = {}) {
       }
       const kept = slots.slice(0, present).sort((a, b) => a - b); // 保留的列号，升序摆放
       for (const col of kept) {
-        position.set((col - (COLS - 1) / 2) * GAP, 0, (row - (ROWS - 1) / 2) * GAP);
+        position.set(
+          (col - (COLS - 1) / 2) * GAP,
+          0,
+          (row - (ROWS - 1) / 2) * GAP,
+        );
         quaternion.identity();
         scale.set(1, 1, 1);
         matrix.compose(position, quaternion, scale);
@@ -291,7 +317,8 @@ export function createWorkshopScene(container, hooks = {}) {
         i++;
       }
     }
-    if (i !== count) console.warn(`regenerate: 写入 ${i} 台 ≠ 预期 ${count} 台`); // 布局参数改动时的防呆
+    if (i !== count)
+      console.warn(`regenerate: 写入 ${i} 台 ≠ 预期 ${count} 台`); // 布局参数改动时的防呆
     mesh.count = count; // 实画台数（< 容量 500），其余 buffer 区间不渲染
     // 改完 buffer 必须手动置脏，CPU → GPU 才会重新上传
     mesh.instanceMatrix.needsUpdate = true;
@@ -368,7 +395,10 @@ export function createWorkshopScene(container, hooks = {}) {
 
   function pickAt(px, py) {
     const rect = renderer.domElement.getBoundingClientRect();
-    ndc.set(((px - rect.left) / rect.width) * 2 - 1, -((py - rect.top) / rect.height) * 2 + 1);
+    ndc.set(
+      ((px - rect.left) / rect.width) * 2 - 1,
+      -((py - rect.top) / rect.height) * 2 + 1,
+    );
     raycaster.setFromCamera(ndc, camera);
     // InstancedMesh 的射线求交会逐实例测并返回 instanceId，一次点击算一次，开销可控
     const hits = raycaster.intersectObject(mesh);
@@ -411,9 +441,18 @@ export function createWorkshopScene(container, hooks = {}) {
     if (disposed || selectedId === -1) return null;
     const i = selectedId;
     if (devStatus[i] !== 2) {
-      devTemp[i] = Math.min(120, Math.max(20, devTemp[i] + (Math.random() - 0.5) * 1.2));
-      devRpm[i] = Math.min(3000, Math.max(1200, devRpm[i] + (Math.random() - 0.5) * 60));
-      devVib[i] = Math.min(15, Math.max(0.2, devVib[i] + (Math.random() - 0.5) * 0.4));
+      devTemp[i] = Math.min(
+        120,
+        Math.max(20, devTemp[i] + (Math.random() - 0.5) * 1.2),
+      );
+      devRpm[i] = Math.min(
+        3000,
+        Math.max(1200, devRpm[i] + (Math.random() - 0.5) * 60),
+      );
+      devVib[i] = Math.min(
+        15,
+        Math.max(0.2, devVib[i] + (Math.random() - 0.5) * 0.4),
+      );
       devOut[i] += (Math.random() * 4) | 0;
     }
     return snapshotForPanel(i);
@@ -429,7 +468,11 @@ export function createWorkshopScene(container, hooks = {}) {
     matrix.decompose(position, quaternion, scale);
     // 保持当前观察方向，只是把距离收近：
     // target = 设备头部，pos = 设备 + 当前视线方向 × 9
-    const dir = camera.position.clone().sub(controls.target).normalize().multiplyScalar(9);
+    const dir = camera.position
+      .clone()
+      .sub(controls.target)
+      .normalize()
+      .multiplyScalar(9);
     const target = position.clone().add(new THREE.Vector3(0, machineHeight, 0));
     const progress = { k: 0 };
     const fromPos = camera.position.clone();
@@ -438,7 +481,11 @@ export function createWorkshopScene(container, hooks = {}) {
       .to({ k: 1 }, 900)
       .easing(Easing.Cubic.InOut)
       .onUpdate(() => {
-        camera.position.lerpVectors(fromPos, target.clone().add(dir), progress.k);
+        camera.position.lerpVectors(
+          fromPos,
+          target.clone().add(dir),
+          progress.k,
+        );
         controls.target.lerpVectors(fromTarget, target, progress.k);
       })
       .onComplete(() => {
@@ -483,7 +530,10 @@ export function createWorkshopScene(container, hooks = {}) {
     const now = performance.now();
     if (now - lastMetricsAt > 500) {
       lastMetricsAt = now;
-      hooks.onMetrics?.(renderer.info.render.calls, renderer.info.render.triangles);
+      hooks.onMetrics?.(
+        renderer.info.render.calls,
+        renderer.info.render.triangles,
+      );
     }
   }
 

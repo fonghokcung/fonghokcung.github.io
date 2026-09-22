@@ -69,7 +69,10 @@ export function useWebGLTriangle(canvas) {
   const t0 = performance.now();
   function loop() {
     rafId = requestAnimationFrame(loop);
-    gl.uniform1f(gl.getUniformLocation(program, 'u_time'), (performance.now() - t0) / 1000);
+    gl.uniform1f(
+      gl.getUniformLocation(program, 'u_time'),
+      (performance.now() - t0) / 1000,
+    );
     gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
   }
   loop();

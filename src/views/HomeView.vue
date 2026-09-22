@@ -7,7 +7,9 @@
     <!-- 打字机自我介绍：偏左 20% / 偏上 15%，逐句打出 → 整句消失 → 下一句 -->
     <div class="intro">
       <!-- 打字中：文字+背景+光标；打完停留期：文字+背景、光标撤走；消失期：整行不渲染 -->
-      <p v-if="typing || holdVisible" class="intro-text">{{ displayText }}<span v-if="typing" class="cursor">|</span></p>
+      <p v-if="typing || holdVisible" class="intro-text">
+        {{ displayText }}<span v-if="typing" class="cursor">|</span>
+      </p>
     </div>
   </div>
 </template>
@@ -185,9 +187,14 @@ new GLTFLoader().load(
       for (let j = 0; j < tHeight; j++) {
         const offset = j * tWidth * 4;
 
-        const curMorph = Math.floor((j / durationAnimation) * morphAttributes.length);
-        const nextMorph = (Math.floor((j / durationAnimation) * morphAttributes.length) + 1) % morphAttributes.length;
-        const lerpAmount = ((j / durationAnimation) * morphAttributes.length) % 1;
+        const curMorph = Math.floor(
+          (j / durationAnimation) * morphAttributes.length,
+        );
+        const nextMorph =
+          (Math.floor((j / durationAnimation) * morphAttributes.length) + 1) %
+          morphAttributes.length;
+        const lerpAmount =
+          ((j / durationAnimation) * morphAttributes.length) % 1;
 
         if (j < durationAnimation) {
           let d0, d1;
@@ -195,24 +202,41 @@ new GLTFLoader().load(
           d0 = morphAttributes[curMorph].array[i * 3];
           d1 = morphAttributes[nextMorph].array[i * 3];
 
-          if (d0 !== undefined && d1 !== undefined) tData[offset + i * 4] = THREE.MathUtils.lerp(d0, d1, lerpAmount);
+          if (d0 !== undefined && d1 !== undefined)
+            tData[offset + i * 4] = THREE.MathUtils.lerp(d0, d1, lerpAmount);
 
           d0 = morphAttributes[curMorph].array[i * 3 + 1];
           d1 = morphAttributes[nextMorph].array[i * 3 + 1];
 
-          if (d0 !== undefined && d1 !== undefined) tData[offset + i * 4 + 1] = THREE.MathUtils.lerp(d0, d1, lerpAmount);
+          if (d0 !== undefined && d1 !== undefined)
+            tData[offset + i * 4 + 1] = THREE.MathUtils.lerp(
+              d0,
+              d1,
+              lerpAmount,
+            );
 
           d0 = morphAttributes[curMorph].array[i * 3 + 2];
           d1 = morphAttributes[nextMorph].array[i * 3 + 2];
 
-          if (d0 !== undefined && d1 !== undefined) tData[offset + i * 4 + 2] = THREE.MathUtils.lerp(d0, d1, lerpAmount);
+          if (d0 !== undefined && d1 !== undefined)
+            tData[offset + i * 4 + 2] = THREE.MathUtils.lerp(
+              d0,
+              d1,
+              lerpAmount,
+            );
 
           tData[offset + i * 4 + 3] = 1;
         }
       }
     }
 
-    textureAnimation = new THREE.DataTexture(tData, tWidth, tHeight, THREE.RGBAFormat, THREE.FloatType);
+    textureAnimation = new THREE.DataTexture(
+      tData,
+      tWidth,
+      tHeight,
+      THREE.RGBAFormat,
+      THREE.FloatType,
+    );
     textureAnimation.needsUpdate = true;
 
     /* 鸟群几何 = 基础模型顶点 × BIRDS 份。每份带：
@@ -245,15 +269,32 @@ new GLTFLoader().load(
 
     for (let i = 0; i < birdGeo.index.array.length * BIRDS; i++) {
       const offset = Math.floor(i / birdGeo.index.array.length) * vertexCount;
-      indices.push(birdGeo.index.array[i % birdGeo.index.array.length] + offset);
+      indices.push(
+        birdGeo.index.array[i % birdGeo.index.array.length] + offset,
+      );
     }
 
     const BirdGeometry = new THREE.BufferGeometry();
-    BirdGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(vertices), 3));
-    BirdGeometry.setAttribute('birdColor', new THREE.BufferAttribute(new Float32Array(color), 3));
-    BirdGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(color), 3));
-    BirdGeometry.setAttribute('reference', new THREE.BufferAttribute(new Float32Array(reference), 4));
-    BirdGeometry.setAttribute('seeds', new THREE.BufferAttribute(new Float32Array(seeds), 4));
+    BirdGeometry.setAttribute(
+      'position',
+      new THREE.BufferAttribute(new Float32Array(vertices), 3),
+    );
+    BirdGeometry.setAttribute(
+      'birdColor',
+      new THREE.BufferAttribute(new Float32Array(color), 3),
+    );
+    BirdGeometry.setAttribute(
+      'color',
+      new THREE.BufferAttribute(new Float32Array(color), 3),
+    );
+    BirdGeometry.setAttribute(
+      'reference',
+      new THREE.BufferAttribute(new Float32Array(reference), 4),
+    );
+    BirdGeometry.setAttribute(
+      'seeds',
+      new THREE.BufferAttribute(new Float32Array(seeds), 4),
+    );
 
     BirdGeometry.setIndex(indices);
 
@@ -279,7 +320,11 @@ function init(birdGeometry) {
   scene.fog = new THREE.Fog(colors[selectModel], 100, 1000);
 
   // LIGHTS
-  const hemiLight = new THREE.HemisphereLight(colors[selectModel], 0xffffff, 4.5);
+  const hemiLight = new THREE.HemisphereLight(
+    colors[selectModel],
+    0xffffff,
+    4.5,
+  );
   hemiLight.color.setHSL(0.6, 1, 0.6, THREE.SRGBColorSpace);
   hemiLight.groundColor.setHSL(0.095, 1, 0.75, THREE.SRGBColorSpace);
   hemiLight.position.set(0, 50, 0);
@@ -326,12 +371,26 @@ function initComputeRenderer() {
   fillPositionTexture(dtPosition);
   fillVelocityTexture(dtVelocity);
 
-  velocityVariable = gpuCompute.addVariable('textureVelocity', velocityFrag, dtVelocity);
-  positionVariable = gpuCompute.addVariable('texturePosition', positionFrag, dtPosition);
+  velocityVariable = gpuCompute.addVariable(
+    'textureVelocity',
+    velocityFrag,
+    dtVelocity,
+  );
+  positionVariable = gpuCompute.addVariable(
+    'texturePosition',
+    positionFrag,
+    dtPosition,
+  );
 
   // 速度依赖位置+速度，位置依赖位置+速度（互为输入，ping-pong 迭代）
-  gpuCompute.setVariableDependencies(velocityVariable, [positionVariable, velocityVariable]);
-  gpuCompute.setVariableDependencies(positionVariable, [positionVariable, velocityVariable]);
+  gpuCompute.setVariableDependencies(velocityVariable, [
+    positionVariable,
+    velocityVariable,
+  ]);
+  gpuCompute.setVariableDependencies(positionVariable, [
+    positionVariable,
+    velocityVariable,
+  ]);
 
   positionUniforms = positionVariable.material.uniforms;
   velocityUniforms = velocityVariable.material.uniforms;
@@ -379,7 +438,10 @@ function initBirds(birdGeometry) {
     shader.uniforms.delta = { value: 0.0 };
 
     let token = '#define STANDARD';
-    shader.vertexShader = shader.vertexShader.replace(token, token + '\n' + injectDecl);
+    shader.vertexShader = shader.vertexShader.replace(
+      token,
+      token + '\n' + injectDecl,
+    );
 
     token = '#include <begin_vertex>';
     shader.vertexShader = shader.vertexShader.replace(token, injectTransform);
@@ -453,7 +515,11 @@ function render() {
   if (materialShader) materialShader.uniforms['delta'].value = delta;
 
   // predator 归一化到 [-0.5, 0.5]，乘 BOUNDS 得世界坐标；用过一次即重置到远处
-  velocityUniforms['predator'].value.set((0.5 * mouseX) / containerHalfX, (-0.5 * mouseY) / containerHalfY, 0);
+  velocityUniforms['predator'].value.set(
+    (0.5 * mouseX) / containerHalfX,
+    (-0.5 * mouseY) / containerHalfY,
+    0,
+  );
   mouseX = 10000;
   mouseY = 10000;
 
@@ -461,9 +527,11 @@ function render() {
 
   // 把本轮模拟结果喂给渲染材质
   if (materialShader)
-    materialShader.uniforms['texturePosition'].value = gpuCompute.getCurrentRenderTarget(positionVariable).texture;
+    materialShader.uniforms['texturePosition'].value =
+      gpuCompute.getCurrentRenderTarget(positionVariable).texture;
   if (materialShader)
-    materialShader.uniforms['textureVelocity'].value = gpuCompute.getCurrentRenderTarget(velocityVariable).texture;
+    materialShader.uniforms['textureVelocity'].value =
+      gpuCompute.getCurrentRenderTarget(velocityVariable).texture;
 
   renderer.render(scene, camera);
 }
@@ -484,7 +552,8 @@ function dispose() {
   resizeObserver?.disconnect();
   resizeObserver = null;
 
-  if (stageRef.value) stageRef.value.removeEventListener('pointermove', onPointerMove);
+  if (stageRef.value)
+    stageRef.value.removeEventListener('pointermove', onPointerMove);
   if (stats && stats.dom) stats.dom.remove();
 
   // GPU 资源逐个释放：鸟群几何 + 材质 + 烘焙纹理 + 模拟纹理
