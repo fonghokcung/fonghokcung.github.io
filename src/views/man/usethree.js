@@ -40,6 +40,7 @@ export function useThreeTriangle(canvas) {
     fragmentShader: basicthreejsFrag,
     uniforms: {
       u_time: { value: 0 },
+      u_resolution: { value: new THREE.Vector2(1, 1) },
     },
   });
 
@@ -48,7 +49,11 @@ export function useThreeTriangle(canvas) {
 
   function resize() {
     const { clientWidth: w, clientHeight: h } = canvas;
-    if (w > 0 && h > 0) renderer.setSize(w, h, false);
+    if (w > 0 && h > 0) {
+      renderer.setSize(w, h, false);
+      // gl_FragCoord 对应物理绘制缓冲（含 pixelRatio），分辨率需取 drawingBufferSize
+      renderer.getDrawingBufferSize(material.uniforms.u_resolution.value);
+    }
   }
   const observer = new ResizeObserver(resize);
   observer.observe(canvas);

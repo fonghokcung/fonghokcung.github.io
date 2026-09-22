@@ -26,6 +26,12 @@ const router = createRouter({
       component: () => import('../views/TheEarth.vue'),
     },
     {
+      path: '/noise',
+      name: 'Noise',
+      zh: '噪声山脉',
+      component: () => import('../views/NoiSe.vue'),
+    },
+    {
       path: '/manUal',
       name: 'ManUal',
       zh: 'ManUal',
