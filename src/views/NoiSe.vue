@@ -76,15 +76,15 @@ function init() {
     },
   });
 
-  // 20×20 特大地形（同 256 分段）+ 雾：近处清晰、远处融进天空 → 无穷无尽。
-  // 噪声频率不变 → 山的密度翻倍、单山尺寸不变；路径半径(4.2)不变 → 与边缘距离 7.7
-  const geo = new THREE.PlaneGeometry(20, 20, 256, 256);
+  // 20×20 特大地形 + 512 分段：顶点间距 0.039 必须小于 fBm 最高倍频波长，
+  // 否则高频欠采样 → 混叠锯齿 + 可见三角面（256 段间距 0.078 是棱棱角角的元凶）
+  const geo = new THREE.PlaneGeometry(20, 20, 512, 512);
   terrain = new THREE.Mesh(geo, material);
   terrain.rotation.x = -Math.PI / 2;
   scene.add(terrain);
 
-  // —— 调试：可视化飞行路径（黄线 = 路径，红线段 = 撞山段） ——
-  debugPathHelper(flightPath);
+  // —— 调试：飞行路径可视化（黄线 = 路径，红线 = 撞山垂线），需要时再打开 ——
+  // debugPathHelper(flightPath);
 
   onResize();
   window.addEventListener('resize', onResize);
@@ -93,7 +93,9 @@ function init() {
 
 /* ===================== 调试：飞行路径可视化 + 碰撞检测 =====================
  * 黄线 = 飞行路径；每个采样点与地形比较，低于「地形+净空」的段画成红色线段。
- * 净空口径与 fly-camera.js 一致（0.1）；控制台同步打印违规点数 */
+ * 净空口径与 fly-camera.js 一致（0.1）；控制台同步打印违规点数。
+ * 平时隐藏；调路径时取消下方函数与 init 中调用两处注释即可 */
+// eslint-disable-next-line no-unused-vars
 function debugPathHelper(curve) {
   const SEGMENTS = 400;
   const positions = [];

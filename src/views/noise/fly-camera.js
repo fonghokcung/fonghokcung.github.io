@@ -86,11 +86,12 @@ function snoise(vx, vy) {
   return 130 * (m0 * g0 + m1 * g1 + m2 * g2);
 }
 
-// fBm：4 倍频叠加，与顶点着色器同参（振幅减半、频率 ×2.03 + 偏移）
+// fBm：3 倍频叠加，与顶点着色器同参（振幅减半、频率 ×2.03 + 偏移）。
+// 倍频数必须与 noise-terrain.vert 的 fbm 循环次数严格一致，否则碰撞地图失配
 function fbm(x, y) {
   let v = 0;
   let a = 0.5;
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 3; i++) {
     v += a * snoise(x, y);
     const nx = x * 2.03 + 19.7;
     y = y * 2.03 + 7.3;
@@ -100,10 +101,12 @@ function fbm(x, y) {
   return v;
 }
 
-// 山体高度（世界空间）：与顶点着色器 height(pos.xy*3) → z=(h-0.5)*0.9 完全一致，
-// 即 z = fbm*0.45（fbm∈[−1,1] → [−0.45,0.45]）
+// 山体高度（世界空间）：与顶点着色器 height(pos.xy*FREQ) → z=(h-0.5)*0.9 完全一致，
+// 即 z = fbm*0.45（fbm∈[−1,1] → [−0.45,0.45]）。
+// FREQ 必须与 noise-terrain.vert 的 #define FREQ 严格一致，否则碰撞地图失配
+const FREQ = 1.5;
 export function terrainHeight(x, z) {
-  return fbm(x * 3, z * 3) * 0.45;
+  return fbm(x * FREQ, z * FREQ) * 0.45;
 }
 
 const CLEARANCE = 0.07; // 路径与山体的净空（贴山掠行）

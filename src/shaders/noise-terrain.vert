@@ -63,17 +63,24 @@ float snoise(vec2 v) {
   return 130.0 * dot(m, g); // [−1,1]
 }
 
-// fBm：4 倍频叠加，振幅减半频率翻倍（Simplex 版）
+// fBm：3 倍频叠加，振幅减半频率翻倍（Simplex 版）。
+// 倍频数与 fly-camera.js 的 fbm 严格同步！最高倍频波长 = 1/(3×2.03²) ≈ 0.081，
+// 顶点间距 0.039（512 段）→ 2.1 采样/波长满足 Nyquist；第 4 倍频（波长 0.04）
+// 只有 1 采样/波长，混叠即「棱棱角角」的元凶，故舍弃（振幅仅占 1/8）
 float fbm(vec2 p) {
   float v = 0.0;
   float a = 0.5;
-  for (int i = 0; i < 4; i++) {
+  for (int i = 0; i < 3; i++) {
     v += a * snoise(p);
     p = p * 2.03 + vec2(19.7, 7.3);
     a *= 0.5;
   }
   return v; // 约 [−1,1]
 }
+
+// 地形基准频率：3 → 20 宽地形约 60 座基本山体，太密；
+// 1.5 → 山体尺寸翻倍、数量减半，疏朗开阔。必须与 fly-camera.js 的 FREQ 严格一致！
+#define FREQ 1.5
 
 // 高度函数：单一入口，法线差分也调它，保证一致
 float height(vec2 p) {
@@ -82,15 +89,17 @@ float height(vec2 p) {
 
 void main() {
   vec3 pos = position; // PlaneGeometry 默认 xy 平面
-  float h = height(pos.xy * 3.0);
+  float h = height(pos.xy * FREQ);
   pos.z = (h - 0.5) * 0.9; // 抬升为地形高度
   vHeight = h;
   vPos = pos.xy;
 
-  // 中心差分求法线：对高度函数在邻域采样
-  float e = 0.02;
-  float hx = height((pos.xy + vec2(e, 0.0)) * 3.0);
-  float hy = height((pos.xy + vec2(0.0, e)) * 3.0);
+  // 中心差分求法线：对高度函数在邻域采样。
+  // e 取顶点间距量级（0.039）：比网格更细的差分只会采样到网格表现不了的细节，
+  // 法线与几何脱节 → 明暗碎噪（棱角感的另一来源）
+  float e = 0.05;
+  float hx = height((pos.xy + vec2(e, 0.0)) * FREQ);
+  float hy = height((pos.xy + vec2(0.0, e)) * FREQ);
   // z = (h-0.5)*0.9 → dz/de ≈ (h邻-h本)*0.9/e；法线 = -dh/dx, -dh/dy, 1
   vec3 n = normalize(vec3(-(hx - h) * 0.9 / e, -(hy - h) * 0.9 / e, 1.0));
   vNormal = n;
