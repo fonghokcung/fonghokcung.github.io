@@ -49,3 +49,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* 全局链接色：统一使用 --color2；主菜单（nav）除外，保持其自身配色 */
+a {
+  color: var(--color2);
+}
+nav a {
+  color: white;
+}
+nav a.router-link-active {
+  color: var(--color-primary);
+}

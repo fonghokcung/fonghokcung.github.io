@@ -1,17 +1,44 @@
 <template>
   <ThreeLayout ref="layoutRef" @stage-resize="onResize">
     <template #default>
-      <h2 class="txt-title">海洋</h2>
+      <h2 class="txt-title">流动水波</h2>
       <p class="txt-sub">
-        three.js 官网 webgl_shaders_ocean：WebGLRenderer + Water（传统
-        GLSL，法线贴图流动 + 镜面反射）+ Sky（大气散射 + 云层）。
+        此页面的水波是「法线假象」：几何上是一块完全平坦的平面，没有任何顶点起伏。
+        起伏来自一张噪声烘焙成的法线贴图——可以理解为先用 Perlin
+        类噪声生成随机高度场、求导后把法线方向编码进图片。
       </p>
       <p class="txt-sub">
-        波浪不是顶点位移，而是一张平铺的法线贴图，每帧用多组不同速度的 UV
-        偏移重复采样得到起伏法线；水面颜色来自天空环境贴图（PMREM）与
-        菲涅耳反射，远处和天空自然相接。
+        每一帧用多组不同速度的 UV 偏移重复采样这张贴图，静止的噪声就呈现出流动的
+        水面法线；再配合天空环境贴图（PMREM）与菲涅耳反射，远处水天自然相接。
+        这比真实位移顶点便宜得多，因此足以覆盖上万单位的海面。
       </p>
-      <p class="txt-hint">固定机位 · 无需操作</p>
+      <p class="txt-sub">
+        天空里的云层是在片元着色器
+        <span class="fbm-tip" tabindex="0">
+          ?
+          <span class="fbm-tip__popup">
+            顶点只搭了个极简天空盒，真正的云形是光栅化之后每个像素独立跑噪声算出来的。
+          </span>
+        </span>
+
+        中实时计算的：用 Perlin 梯度噪声 生成云的基本密度场，再叠加四倍频 fbm
+        <span class="fbm-tip" tabindex="0">
+          ?
+          <span class="fbm-tip__popup">
+            fbm 全称 fractal Brownian
+            motion（分形布朗运动），把基础噪声多层叠加的分形组合方法。
+          </span>
+        </span>
+        （振幅减半、频率翻倍） 补出从大云团到细碎边缘的层次。
+      </p>
+      <a
+        class="txt-hint"
+        href="/textures/waternormals.jpg"
+        target="_blank"
+        rel="noopener"
+      >
+        点击查看法线贴图
+      </a>
     </template>
 
     <template #stage></template>
@@ -164,5 +191,51 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ThreeLayout 已提供舞台；本页无额外悬浮层 */
+/* fbm 问号图标 + hover/聚焦 tooltip */
+.fbm-tip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  margin: 0 2px;
+  font-size: 9px;
+  color: var(--color3);
+  cursor: help;
+  border: 1px solid var(--color3);
+  border-radius: 50%;
+}
+.fbm-tip__popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: -4px;
+  z-index: 50;
+  width: 200px;
+  padding: 6px 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: #fff;
+  visibility: hidden;
+  background: var(--color3);
+  border-radius: 5px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.fbm-tip:hover .fbm-tip__popup,
+.fbm-tip:focus .fbm-tip__popup {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* 让链接复用 txt-hint 的分隔线与块级布局，并去掉默认下划线 */
+.txt-hint {
+  display: block;
+  text-decoration: none;
+}
+.txt-hint:hover {
+  text-decoration: underline;
+}
 </style>

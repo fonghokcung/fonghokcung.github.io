@@ -97,6 +97,7 @@ defineExpose({ stageRef, txtWidth });
 /* ---- 舞台：尽可能大，吃掉除文案面板外的全部空间 ---- */
 .stage {
   position: relative; /* 悬浮层/stats 以它为锚点 */
+  z-index: 1;
   flex: 1;
   min-width: 0;
   min-height: 200px;
@@ -109,10 +110,11 @@ defineExpose({ stageRef, txtWidth });
 
 /* ---- 右侧文案说明（宽度由 txtWidth 内联驱动：60 初始 / 260 展开 / 0 收起） ---- */
 .txt {
+  position: relative; /* 让面板形成可设层级的定位上下文 */
+  z-index: 10; /* 高于 stage，面板内 tooltip 才能盖过 canvas */
   flex-shrink: 0;
   background: var(--color-bg);
   color: #000;
-  overflow: hidden;
   border-left: 2px solid #333;
   transition: width 0.25s ease;
 }
@@ -144,6 +146,12 @@ defineExpose({ stageRef, txtWidth });
   font-size: 10px;
   line-height: 1.8;
   color: #000;
+}
+
+/* 链接型 hint：跟随全局链接色 --color2（特异性高于上面的 .txt-hint 才能覆盖黑色）。
+ * 普通 <p class="txt-hint"> 提示文字仍保持黑色 */
+.txt-body :deep(a.txt-hint) {
+  color: var(--color2);
 }
 
 /* ---- 收起/展开圆形按钮 ---- */
