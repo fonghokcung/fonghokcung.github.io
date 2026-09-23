@@ -32,6 +32,12 @@ const router = createRouter({
       component: () => import('../views/NoiSe.vue'),
     },
     {
+      path: '/flowingwater',
+      name: 'FlowingWater',
+      zh: '流动水波',
+      component: () => import('../views/FlowingWater.vue'),
+    },
+    {
       path: '/manUal',
       name: 'ManUal',
       zh: 'ManUal',
