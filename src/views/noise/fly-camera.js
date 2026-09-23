@@ -113,7 +113,7 @@ export function terrainHeight(x, z) {
 
 export const CLEARANCE = 0.06; // 贴地净空：接受偶尔触山，宁可低不可高
 const MAX_ABOVE = 0.25; // 控制点相对正下方地形的高度上限
-const CONTROL_COUNT = 20; // 点间距 ~0.5 < 地形波长 0.67，样条才能跟随而非跨越
+const CONTROL_COUNT = 14; // 控制点少 → 样条弯曲更少、飞行更流畅
 
 /* 生成闭合飞行路径（每次调用形状随机，页面生命周期内固定） */
 export function buildFlightPath(radius = 1.7) {
@@ -230,15 +230,20 @@ export function buildFlightPath(radius = 1.7) {
   return new THREE.CatmullRomCurve3(pts, true, 'centripetal');
 }
 
-/* ===================== 相机沿路径飞行 ===================== */
+/* ===================== 相机第三人称跟随直升机飞行 ===================== */
 export class FlyCamera {
   constructor(camera, curve) {
     this.camera = camera;
     this.curve = curve;
+    this.model = null; // 直升机模型（异步加载后赋值）；为空时退化为第一人称
+    this.rotor = null; // 主旋翼节点（每帧绕竖直轴旋转）
+    this.rotorSpeed = 30; // 旋翼角速度 rad/s（约 5 转/秒）
     this.t = 0; // 路径参数 [0,1)
-    this.baseSpeed = 0.015; // 常速：每秒推进 1.5% 路径
+    this.baseSpeed = 0.08; // 常速：每秒推进 1% 路径
     this.speed = this.baseSpeed; // 当前速度（向目标速度平滑趋近）
-    this.minSpeedFactor = 0.005; // 急弯处目标速度的折减系数
+    this.minSpeedFactor = 0.2; // 急弯处最低速度 = 常速的 35%（直道全速，曲率线性插值）
+    this.chaseDistance = 2.0; // 第三人称：相机在机尾后的水平距离
+    this.chaseHeight = 0.8; // 第三人称：相机相对直升机的抬高量
 
     // 预采样曲率表：相邻采样点切线夹角 → 局部曲率 [0,1]
     const N = 200;
@@ -264,11 +269,15 @@ export class FlyCamera {
   }
 
   update(dt) {
+    // 目标速度：曲率 0 → 全速；曲率 1 → 常速 × minSpeedFactor（急弯处最低速）
     const target =
       this.baseSpeed *
-      (1 - this.minSpeedFactor * this.curvatureAt(this.t) * 1.65);
+      (1 - (1 - this.minSpeedFactor) * this.curvatureAt(this.t));
     this.speed += (target - this.speed) * Math.min(1, dt * 2.5); // 指数阻尼，速度不跳变
     this.t = (this.t + this.speed * dt) % 1;
+
+    // 主旋翼旋转（即使全貌模式不显示，也无需停止；显示时始终在转）
+    if (this.rotor) this.rotor.rotation.y += dt * this.rotorSpeed;
 
     const pos = this.curve.getPointAt(this.t);
     // 运行时兜底：正常不触发（生成期已验证）；日后地形若改为动态，也保证不进山
@@ -276,10 +285,32 @@ export class FlyCamera {
     if (pos.y < ground) pos.y = ground;
 
     const tangent = this.curve.getTangentAt(this.t);
-    this.camera.position.copy(pos);
-    lookTargetTmp.copy(pos).addScaledVector(tangent, 2);
-    this.camera.lookAt(lookTargetTmp); // 视线 = 轨迹切线
+
+    // 直升机模型：位置贴路径点，机头朝向切线
+    if (this.model) {
+      this.model.position.copy(pos);
+      this.model.lookAt(lookTargetTmp.copy(pos).add(tangent));
+    }
+
+    if (this.model) {
+      // 第三人称：相机在机尾后上方，沿切线自然跟随起伏；
+      // 后撤点可能低于地形（爬坡时），高度兜底防穿地
+      chaseTmp.copy(pos).addScaledVector(tangent, -this.chaseDistance);
+      chaseTmp.y = Math.max(
+        pos.y + this.chaseHeight,
+        terrainHeight(chaseTmp.x, chaseTmp.z) + CLEARANCE,
+      );
+      this.camera.position.copy(chaseTmp);
+      lookTargetTmp.copy(pos).addScaledVector(tangent, 3); // 视线越过机头看前方
+      this.camera.lookAt(lookTargetTmp);
+    } else {
+      // 模型未加载/不可用：退化为第一人称
+      this.camera.position.copy(pos);
+      lookTargetTmp.copy(pos).addScaledVector(tangent, 2);
+      this.camera.lookAt(lookTargetTmp); // 视线 = 轨迹切线
+    }
   }
 }
 
 const lookTargetTmp = new THREE.Vector3();
+const chaseTmp = new THREE.Vector3();

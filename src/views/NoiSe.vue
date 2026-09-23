@@ -58,6 +58,7 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
 import noiseTerrainVert from '@/shaders/noise-terrain.vert?raw';
 import noiseTerrainFrag from '@/shaders/noise-terrain.frag?raw';
@@ -98,9 +99,20 @@ function init() {
   scene.background = skyColor;
   scene.fog = new THREE.Fog(skyColor, 3.2, 7.2); // 数值与片元距离雾一致
 
+  // 直升机照明（地形走自定义 shader 不吃场景灯）：
+  // 主光 + 半球环境光 + 反向冷色补光（消除背阴面死黑）
+  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x2a2f1d, 1.8));
+  const sun = new THREE.DirectionalLight(0xfff2d6, 3.5);
+  sun.position.set(0.5, 0.8, 0.6);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x9db8ff, 0.9);
+  fill.position.set(-0.6, 0.4, -0.5);
+  scene.add(fill);
+
   camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
   const flightPath = buildFlightPath(4.2);
   flyCamera = new FlyCamera(camera, flightPath);
+  loadHelicopter();
 
   material = new THREE.ShaderMaterial({
     vertexShader: noiseTerrainVert,
@@ -129,6 +141,71 @@ function init() {
   onResize();
   window.addEventListener('resize', onResize);
   startLoop();
+}
+
+/* ===================== 直升机模型加载 =====================
+ * 加载后按包围盒自动归一尺寸（目标机长 0.6，不依赖模型原始单位），
+ * 并把模型几何中心平移到原点——外层 group 的原点即路径点。
+ * 只在飞行模式可见；加载失败静默退化为第一人称 */
+const TARGET_HELI_SIZE = 0.4;
+function loadHelicopter() {
+  new GLTFLoader().load(
+    '/models/helicopter.glb',
+    (gltf) => {
+      if (disposed) return;
+      const heli = gltf.scene;
+      // FBX 转出的主材质基色被压成近黑（0.012,0.002,0.003），提亮才能显出红色机身
+      heli.traverse((obj) => {
+        if (!obj.isMesh) return;
+        const c = obj.material.color;
+        if (c.r + c.g + c.b < 0.05) c.multiplyScalar(30);
+        // 降低金属度：金属靠环境贴图反射（本场景无 env map）会发暗、不吃灯；
+        // 降到 0.15 让漫反射主导，光照影响才明显
+        obj.material.metalness = 0.15;
+        // 隐藏模型自带的螺旋桨（扁平宽片 primitive，材质 Material.002），
+        // 改用下方自建、可旋转的旋翼
+        if (obj.material.name === 'Material.002') obj.visible = false;
+      });
+      const box = new THREE.Box3().setFromObject(heli);
+      const size = new THREE.Vector3();
+      const center = new THREE.Vector3();
+      box.getSize(size);
+      box.getCenter(center);
+      const scale = TARGET_HELI_SIZE / Math.max(size.x, size.y, size.z);
+      // heli 自身带缩放：几何中心在 group 空间的位置是 scale×center，
+      // 故回移量 = −scale×center 才能让 group 原点落在几何中心
+      heli.scale.setScalar(scale);
+      heli.position.copy(center).multiplyScalar(-scale);
+      const group = new THREE.Group();
+      group.add(heli);
+
+      // 主旋翼：glb 只有一个整体 mesh（螺旋桨非独立部件），用两片十字薄片自建。
+      // group 单位是世界空间：旋翼高度 = 缩放后包围盒顶部
+      const topY = size.y * scale * 0.5;
+      const bladeGeo = new THREE.BoxGeometry(
+        TARGET_HELI_SIZE * 0.92,
+        0.004,
+        0.025,
+      );
+      const rotor = new THREE.Group();
+      rotor.position.y = topY + 0.02;
+      const bladeA = new THREE.Mesh(
+        bladeGeo,
+        new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.7 }),
+      );
+      const bladeB = bladeA.clone();
+      bladeB.rotation.y = Math.PI / 2;
+      rotor.add(bladeA, bladeB);
+      group.add(rotor);
+
+      group.visible = isFlying.value;
+      scene.add(group);
+      flyCamera.model = group;
+      flyCamera.rotor = rotor;
+    },
+    undefined,
+    (err) => console.error('[helicopter] 加载失败', err),
+  );
 }
 
 /* ===================== 路径可视化 + 碰撞统计 =====================
@@ -199,6 +276,8 @@ function toggleMode() {
   material.uniforms.uFogNear.value = near;
   material.uniforms.uFogFar.value = far;
   for (const obj of pathHelpers) obj.visible = !isFlying.value;
+  // 直升机：仅飞行模式显示（全貌模式观察的是路径与地形）
+  if (flyCamera?.model) flyCamera.model.visible = isFlying.value;
 }
 
 /* ===================== 渲染循环 ===================== */
