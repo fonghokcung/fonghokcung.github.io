@@ -1,5 +1,7 @@
 uniform vec3 uSunDir;
 uniform vec3 uFogColor; // 雾色 = 天空色（JS 侧注入）
+uniform float uFogNear; // 雾起始距离（调试俯瞰时拉远=实际关雾）
+uniform float uFogFar; // 雾完全混合距离
 varying float vHeight;
 varying vec3 vNormal;
 varying vec2 vPos;
@@ -30,7 +32,7 @@ void main() {
   // —— 距离雾：远处淡入天空色 → 地形无边界，无穷无尽 ——
   // near/far 与 NoiSe.vue 的 scene.fog 保持一致；地形 20 宽后路径离边缘 7+，
   // 雾程随世界尺度拉长，边缘方向在入雾前已沉入天空色
-  float fogFactor = smoothstep(3.2, 7.2, -vViewPos.z);
+  float fogFactor = smoothstep(uFogNear, uFogFar, -vViewPos.z);
   col = mix(col, uFogColor, fogFactor);
 
   gl_FragColor = vec4(col, 1.0);

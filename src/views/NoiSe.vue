@@ -2,47 +2,84 @@
   <ThreeLayout ref="layoutRef" @stage-resize="onResize">
     <template #default>
       <h2 class="txt-title">噪声山脉</h2>
+
       <p class="txt-sub">
-        Simplex 2D 噪声 → fBm 分形叠加（四倍频，振幅减半、频率翻倍）生成高度场，
-        驱动 PlaneGeometry 6.6
-        万顶点位移成山。相机自动漫游：沿山腰随机平滑飞行，
-        前向探测地形提前转向，永不撞山。
+        柏林噪声（Perlin Noise） 是一种由 Ken Perlin 在 1983
+        年发明的梯度噪声算法。
       </p>
-      <p class="txt-hint">自动巡航 · 无需操作</p>
+      <p class="txt-sub">
+        为什么需要柏林噪声呢？我们首先得说说纯随机噪声，纯随机噪声是每个像素点独立随机取值，结果像电视雪花，毫无规律。这种噪声没有空间连贯性，不适合模拟自然现象。而柏林噪声的核心目标是相邻点的值应该相近，整体平滑连续，但又带有随机性。
+      </p>
+      <div class="pipeline-note">
+        <p class="txt-sub">
+          本示例更好的做法是游戏/影视行业的标准内容管线——离线烘焙，运行时播放，
+          「两山之间」的飞行效果在这条管线里几乎是必然的。
+        </p>
+        <p class="txt-sub">
+          1. 地形生成：Gaea / World Machine / Houdini / World Creator（Blender
+          亦可）用 Perlin 节点 + 水力侵蚀生成，烤死成高度图、纹理与网格；
+        </p>
+        <p class="txt-sub">
+          2.
+          路径调整：在能看见地形全貌的样条编辑器里，手工把曲线从两座山峰之间拖过去，
+          并加关键帧控制高低与速度；
+        </p>
+        <p class="txt-sub">
+          3. 导出载入：GLTF 模型 + 曲线控制点 JSON，运行时只读——不再计算噪声，
+          也就没有一致性负担和路径被架高的问题。
+        </p>
+        <p class="txt-sub">
+          关键区别是 bake-time 与
+          runtime，而非程序化与手工：三维软件里同样是程序化生成，
+          只在制作期烘焙。侵蚀模拟计算量大、必须离线，它产生的才是真实山脉的分水岭与山谷；
+          原始 Perlin/fBm 本质只是「起伏的泡泡」。
+        </p>
+      </div>
+      <p class="txt-sub">
+        当前页面采用运行时程序化：零资产、每次刷新地形不同，代价是美学质量靠运气、
+        安全靠收敛器。折中方案是地形离线烘焙、路径在导出的高度图上运行时搜索，
+        兼顾真实山形与路径随机性。
+      </p>
+      <p class="txt-hint">质量上限在离线管线 · 灵活性在运行时管线</p>
     </template>
 
-    <template #stage></template>
+    <template #stage>
+      <button class="overview-btn" @click="toggleMode">
+        {{ isFlying ? '全貌' : '返回飞行' }}
+      </button>
+    </template>
   </ThreeLayout>
 </template>
 
 <script setup>
-/*
- * 噪声山脉：three.js + 顶点着色器 Simplex 2D noise → fBm 高度场。
- * 技术要点：
- *  1. 高度在顶点着色器里计算（Simplex 2D + 4 倍频 fBm），片元按海拔分层配色
- *  2. 计算法线：中心差分采样邻域高度 → vNormal，供片元做方向光照
- *  3. PlaneGeometry 高分段（256×256），旋转平放成「地形」
- *  4. 相机漫游（noise/fly-camera.js）：随机平滑飞行 + 山体避障，山体本身静止
- */
+/* 噪声山脉页面：顶点着色器用经典 Perlin 2D + fBm 生成地形，
+ * 相机沿预生成闭合路径自动巡航（fly-camera.js）。
+ * 两种模式：飞行（默认）/ 全貌（OrbitControls 俯瞰，路径曲线同步显隐） */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
 import noiseTerrainVert from '@/shaders/noise-terrain.vert?raw';
 import noiseTerrainFrag from '@/shaders/noise-terrain.frag?raw';
 import {
   buildFlightPath,
+  CLEARANCE,
   FlyCamera,
+  PERM,
   terrainHeight,
 } from '@/views/noise/fly-camera';
 
 const layoutRef = ref(null);
+const isFlying = ref(true); // true=飞行模式（默认）；false=全貌模式
 
 let renderer = null;
 let scene = null;
 let camera = null;
 let material = null;
-let flyCamera = null; // 相机漫游控制器（随机飞行 + 避障）
-let terrain = null; // 山地 mesh
+let flyCamera = null; // 路径飞行控制器
+let controls = null; // 全貌模式的轨道控制器
+let terrain = null; // 地形 mesh
+let pathHelpers = []; // 路径可视化对象（仅全貌模式可见）
 let rafId = 0;
 let disposed = false;
 
@@ -56,51 +93,52 @@ function init() {
   container.appendChild(renderer.domElement);
 
   scene = new THREE.Scene();
-  // 无尽感三件套之一：雾色 = 天空色，地平线处地形淡入天空，看不到边界
+  // 雾色 = 天空色：远处地形淡入天空，看不到地形边界
   const skyColor = new THREE.Color('#0d1b2a');
   scene.background = skyColor;
-  scene.fog = new THREE.Fog(skyColor, 3.2, 7.2); // 数值须与 frag 距离雾一致
+  scene.fog = new THREE.Fog(skyColor, 3.2, 7.2); // 数值与片元距离雾一致
 
   camera = new THREE.PerspectiveCamera(55, 1, 0.1, 100);
-  // 相机漫游 v2：预生成闭合安全路径（生成期已验证不撞山），循环飞行
-  const flightPath = buildFlightPath(4.2); // 路径半径随地形放大
+  const flightPath = buildFlightPath(4.2);
   flyCamera = new FlyCamera(camera, flightPath);
 
   material = new THREE.ShaderMaterial({
     vertexShader: noiseTerrainVert,
     fragmentShader: noiseTerrainFrag,
+    wireframe: true, // 线框模式；恢复实体着色删掉本行
     uniforms: {
       u_time: { value: 0 },
+      uPerm: { value: PERM }, // 置换表：CPU/GPU 共享，地形逐点一致
       uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.6).normalize() },
-      uFogColor: { value: skyColor }, // 与 scene.background 同色，地平线无缝
+      uFogColor: { value: skyColor },
+      uFogNear: { value: 3.2 },
+      uFogFar: { value: 7.2 },
     },
   });
 
-  // 20×20 特大地形 + 512 分段：顶点间距 0.039 必须小于 fBm 最高倍频波长，
-  // 否则高频欠采样 → 混叠锯齿 + 可见三角面（256 段间距 0.078 是棱棱角角的元凶）
+  // 20 宽地形，512 分段：顶点间距须小于 fBm 最高倍频波长，否则混叠出棱角
   const geo = new THREE.PlaneGeometry(20, 20, 512, 512);
   terrain = new THREE.Mesh(geo, material);
-  terrain.rotation.x = -Math.PI / 2;
+  terrain.rotation.x = -Math.PI / 2; // PlaneGeometry 默认在 xy 平面，旋转平放
   scene.add(terrain);
 
-  // —— 调试：飞行路径可视化（黄线 = 路径，红线 = 撞山垂线），需要时再打开 ——
-  // debugPathHelper(flightPath);
+  // 路径可视化：默认飞行模式隐藏，全貌模式显示
+  pathHelpers = debugPathHelper(flightPath);
+  for (const obj of pathHelpers) obj.visible = false;
 
   onResize();
   window.addEventListener('resize', onResize);
   startLoop();
 }
 
-/* ===================== 调试：飞行路径可视化 + 碰撞检测 =====================
- * 黄线 = 飞行路径；每个采样点与地形比较，低于「地形+净空」的段画成红色线段。
- * 净空口径与 fly-camera.js 一致（0.1）；控制台同步打印违规点数。
- * 平时隐藏；调路径时取消下方函数与 init 中调用两处注释即可 */
-// eslint-disable-next-line no-unused-vars
+/* ===================== 路径可视化 + 碰撞统计 =====================
+ * 黄线 = 路径；路径点低于「地形+净空」处画红色垂线并计数。
+ * 返回创建的对象数组，由模式切换控制显隐 */
 function debugPathHelper(curve) {
+  const helpers = [];
   const SEGMENTS = 400;
   const positions = [];
   const hitPositions = [];
-  const CLEARANCE = 0.1; // 与生成器 CLEARANCE 严格一致，避免误报
   let hits = 0;
   for (let i = 0; i <= SEGMENTS; i++) {
     const p = curve.getPointAt(i / SEGMENTS);
@@ -108,7 +146,7 @@ function debugPathHelper(curve) {
     const ground = terrainHeight(p.x, p.z);
     if (p.y < ground + CLEARANCE) {
       hits++;
-      hitPositions.push(p.x, p.y, p.z, p.x, ground, p.z); // 垂直线段：路径点→地面
+      hitPositions.push(p.x, p.y, p.z, p.x, ground, p.z);
     }
   }
   const pathLine = new THREE.Line(
@@ -119,6 +157,7 @@ function debugPathHelper(curve) {
     new THREE.LineBasicMaterial({ color: 0xfbd509 }),
   );
   scene.add(pathLine);
+  helpers.push(pathLine);
   if (hitPositions.length) {
     const hitLine = new THREE.LineSegments(
       new THREE.BufferGeometry().setAttribute(
@@ -128,14 +167,41 @@ function debugPathHelper(curve) {
       new THREE.LineBasicMaterial({ color: 0xff2020 }),
     );
     scene.add(hitLine);
+    helpers.push(hitLine);
   }
   console.log(
     `[flight-path] 采样 ${SEGMENTS + 1} 点，撞山嫌疑 ${hits} 处` +
       (hits ? '（红线=路径到地面的垂线）' : '（路径安全）'),
   );
+  return helpers;
 }
 
-/* ===================== 渲染循环：相机漫游需要逐帧推进 ===================== */
+/* ===================== 模式切换：飞行 ⇄ 全貌 ===================== */
+function toggleMode() {
+  if (!renderer) return;
+  isFlying.value = !isFlying.value;
+  if (isFlying.value) {
+    // 回飞行：controls 销毁，下一帧 flyCamera.update 把相机拉回路径当前点
+    controls?.dispose();
+    controls = null;
+  } else {
+    // 进全貌：拉高俯瞰，启用 controls
+    camera.position.set(0, 12, 13);
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }
+  // 雾程：飞行 3.2~7.2；全貌 100~200（实际关雾）
+  const near = isFlying.value ? 3.2 : 100;
+  const far = isFlying.value ? 7.2 : 200;
+  scene.fog.near = near;
+  scene.fog.far = far;
+  material.uniforms.uFogNear.value = near;
+  material.uniforms.uFogFar.value = far;
+  for (const obj of pathHelpers) obj.visible = !isFlying.value;
+}
+
+/* ===================== 渲染循环 ===================== */
 function startLoop() {
   const timer = new THREE.Timer();
   timer.connect(document);
@@ -146,8 +212,8 @@ function startLoop() {
       return;
     }
     timer.update();
-    const dt = Math.min(timer.getDelta(), 0.05); // 后台切回防爆
-    flyCamera?.update(dt);
+    const dt = Math.min(timer.getDelta(), 0.05); // 切后台再回来防爆发
+    if (isFlying.value) flyCamera?.update(dt);
     renderer.render(scene, camera);
   }
   loop();
@@ -171,6 +237,7 @@ function dispose() {
   window.removeEventListener('resize', onResize);
   terrain?.geometry.dispose();
   material?.dispose();
+  controls?.dispose();
   renderer?.dispose();
   renderer?.domElement.remove();
   renderer = null;
@@ -188,5 +255,24 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* ThreeLayout 已提供舞台；本页无额外悬浮层 */
+.pipeline-note p {
+  font-style: italic;
+}
+.overview-btn {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 10;
+  padding: 7px 16px;
+  font-size: 13px;
+  color: #e6edf3;
+  cursor: pointer;
+  background: rgba(20, 30, 45, 0.72);
+  border: 1px solid rgba(230, 237, 243, 0.3);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+}
+.overview-btn:hover {
+  background: rgba(40, 55, 75, 0.9);
+}
 </style>
