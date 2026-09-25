@@ -1,7 +1,7 @@
 /* three.js 对象工厂：本页所有「场景图节点」的创建与更新集中于此。
- *   createBackground     自转模式渐变背景（挂相机，亮→暗沿太阳方向）
- *   createSunRaysGroup   canvas 左侧 4 条光线箭头（挂相机，指示阳光传播方向）
- *   updateSunRays        箭头方向/位置刷新（相机投影 + 赤道实测高度）
+ *   createBackground     星空背景（挂相机，深空底色 + 程序化星点，常显）
+ *   createSunRaysGroup   4 条光线箭头（世界空间，随公转角度绕 Y 定位，指示阳光传播方向）
+ *   updateSunRays        箭头方向/位置刷新（世界空间，随公转角度绕 Y 定位）
  *   createEarthMaterial  显示球材质（onBeforeCompile 注入索引→调色板 + 昼夜光照）
  *   createAxisLine       地轴线
  *   createLatitudeCircle 纬线圈（赤道/南北极圈）
@@ -10,14 +10,14 @@ import * as THREE from 'three';
 
 const HELPER_COLOR = 0xfbd509; // 地轴/纬圈/箭头色 = --color-primary（#FBD509）
 
-/* —— 渐变背景：全屏平面，uSunScreen（屏幕空间太阳方向）决定渐变方向 —— */
+/* —— 星空背景：全屏平面挂相机（固定屏幕空间），深空底色 + 两层程序化星点，仅自转模式显示 —— */
 export function createBackground() {
   const mesh = new THREE.Mesh(
     new THREE.PlaneGeometry(1, 1),
     new THREE.ShaderMaterial({
       depthTest: false,
       depthWrite: false,
-      uniforms: { uSunScreen: { value: new THREE.Vector2(-1, 0) } }, // 默认屏幕左亮
+      uniforms: { uAspect: { value: 1 } }, // 屏幕宽高比：星点不被拉扁（onResize 时更新）
       vertexShader: /* glsl */ `
         varying vec2 vUv;
         void main() {
@@ -27,14 +27,34 @@ export function createBackground() {
       `,
       fragmentShader: /* glsl */ `
         varying vec2 vUv;
-        uniform vec2 uSunScreen; // 太阳方向在屏幕空间的投影（NDC，y 上正）
+        uniform float uAspect;
+
+        // 二维 hash → [0,1) 伪随机
+        float hash21(vec2 p) {
+          p = fract(p * vec2(234.34, 435.345));
+          p += dot(p, p + 34.23);
+          return fract(p.x * p.y);
+        }
+
         void main() {
-          // 灰度渐变：太阳侧亮 rgb(200) → 对侧暗 rgb(10)
-          vec2 p = vUv * 2.0 - 1.0;                          // uv → NDC [-1,1]
-          vec2 s = normalize(uSunScreen);
-          float t = clamp(dot(p, s) * -0.5 + 0.5, 0.0, 1.0); // 太阳侧 0 → 背阳侧 1
-          float g = mix(200.0, 10.0, t) / 255.0;
-          gl_FragColor = vec4(vec3(g), 1.0);
+          vec2 p = vUv * 2.0 - 1.0; // uv → NDC [-1,1]
+          p.x *= uAspect;
+          vec3 col = vec3(0.012, 0.016, 0.030); // 深空底色：近黑微蓝
+          // 两层星点：稀疏亮星 + 密集暗星，制造景深
+          for (int layer = 0; layer < 2; layer++) {
+            float fl = float(layer);
+            vec2 g = p * mix(14.0, 42.0, fl);   // 网格密度
+            vec2 id = floor(g) + fl * 61.7;     // 层间错开
+            vec2 f = fract(g);
+            float has = step(mix(0.80, 0.93, fl), hash21(id)); // 只部分格子有星
+            vec2 starPos = vec2(hash21(id + 1.3), hash21(id + 2.7)); // 格内随机
+            float star = smoothstep(0.12, 0.02, length(f - starPos)) * has;
+            star *= 0.3 + 0.7 * hash21(id + 4.1); // 亮度随机
+            // 冷暖随机（偏蓝白 / 偏暖黄）
+            col += star * mix(vec3(0.75, 0.82, 1.0), vec3(1.0, 0.88, 0.70),
+                              hash21(id + 5.9));
+          }
+          gl_FragColor = vec4(col, 1.0);
         }
       `,
     }),
@@ -42,10 +62,10 @@ export function createBackground() {
   mesh.visible = false; // 默认关：静止态用纯色 scene.background
   mesh.frustumCulled = false;
   mesh.renderOrder = -1;
-  return { mesh, sunUniform: mesh.material.uniforms.uSunScreen };
+  return { mesh, aspectUniform: mesh.material.uniforms.uAspect };
 }
 
-/* —— 4 条光线箭头组（挂相机）：ArrowHelper = 线杆 + 锥头 —— */
+/* —— 4 条光线箭头组（世界空间）：ArrowHelper = 线杆 + 锥头 —— */
 export function createSunRaysGroup() {
   const group = new THREE.Group();
   const RAY_COUNT = 4;
@@ -58,8 +78,7 @@ export function createSunRaysGroup() {
       0.16,
       0.08,
     );
-    arrow.position.set(-0.92, 0.45 - i * 0.3, -1); // 初始占位；updateSunRays 每帧重排
-    arrow.renderOrder = 5; // 画在渐变背景之上
+    arrow.position.set(2, 0.45 - i * 0.3, 0); // 初始占位；updateSunRays 按日期重排
     group.add(arrow);
   }
   group.visible = false;
@@ -67,24 +86,19 @@ export function createSunRaysGroup() {
 }
 
 const rayTmp = new THREE.Vector3();
-const perpTmp = new THREE.Vector3();
 const centerTmp = new THREE.Vector3();
 
-// 箭头刷新：方向 = 光线传播方向 = 屏幕空间太阳方向的反向；
-// 位置中心 y = 0.5 半高（固定值），x 取横向偏移 -0.8 半宽
-export function updateSunRays(group, camera, sunUniform) {
-  const dir = sunUniform.value;
-  const prop = rayTmp.set(-dir.x, -dir.y, 0).normalize();
-  const halfH = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-  const halfW = halfH * camera.aspect;
+// 箭头刷新（世界空间）：锚点 = 太阳方向 × 半径（绕 Y 轴随日期转动），
+// 方向 = 光线传播方向 = 指向地心；4 条沿 Y 轴错开（光都在 xoz 平面内，Y 即垂直方向）
+export function updateSunRays(group, sunDir) {
+  const RADIUS = 1.9; // 距地心（地球半径 1，相机距离 2.5，落在其间）
+  const prop = rayTmp.copy(sunDir).negate().normalize();
   group.children.forEach((arrow, i) => {
     arrow.setDirection(prop);
-    perpTmp.set(-prop.y, prop.x, 0);
-    centerTmp
-      .set(-0.8 * halfW, 0.5 * halfH, -1)
-      .addScaledVector(perpTmp, halfH * (0.33 - i * 0.22));
+    centerTmp.copy(sunDir).multiplyScalar(RADIUS);
+    centerTmp.y += 0.45 - i * 0.3;
     arrow.position.copy(centerTmp);
-    arrow.setLength(0.09 * halfH, 0.028 * halfH, 0.014 * halfH);
+    arrow.setLength(0.5, 0.12, 0.06);
   });
 }
 
@@ -95,8 +109,9 @@ export function createEarthMaterial({
   paletteTexture,
   paletteWidth,
 }) {
-  const sunDirVec = new THREE.Vector3(-1, 0, 0); // 占位；startSpin 时按相机屏幕左方重算
+  const sunDirVec = new THREE.Vector3(-1, 0, 0); // 占位；startSpin 时按相机屏幕右方重算
   let sunLightUniform = null;
+  let lightOn = 0; // 期望的开关状态：onBeforeCompile 尚未触发时先记下，编译时用作初值
   const material = new THREE.MeshBasicMaterial({ map: texture });
   material.onBeforeCompile = function (shader) {
     shader.fragmentShader = shader.fragmentShader
@@ -139,7 +154,7 @@ export function createEarthMaterial({
     shader.uniforms.paletteTexture = { value: paletteTexture };
     shader.uniforms.paletteTextureWidth = { value: paletteWidth };
     shader.uniforms.uSunDir = { value: sunDirVec };
-    shader.uniforms.uLightOn = { value: 0 }; // 默认关：静止态无昼夜
+    shader.uniforms.uLightOn = { value: lightOn }; // 初值取期望状态（编译晚于 startSpin 时也正确）
     sunLightUniform = shader.uniforms.uLightOn; // 捕获引用，供自转模式开关
   };
   // 顶点着色器补一段：法线变到世界空间传给片元（MeshBasic 本身不带光照链）
@@ -155,7 +170,15 @@ export function createEarthMaterial({
         '#include <begin_vertex>\n vWorldNormal = normalize(mat3(modelMatrix) * normal);',
       );
   })(material.onBeforeCompile);
-  return { material, sunDirVec, getSunLightUniform: () => sunLightUniform };
+  return {
+    material,
+    sunDirVec,
+    // 开关昼夜光照：着色器编译前调用也安全（初值由 lightOn 提供）
+    setSunLight: (on) => {
+      lightOn = on ? 1 : 0;
+      if (sunLightUniform) sunLightUniform.value = lightOn;
+    },
+  };
 }
 
 /* —— 地轴线：贯穿南北极延长 35%，常显（自转时随组倾斜） —— */

@@ -13,10 +13,30 @@
     <template #stage>
       <div ref="labelsRef" class="labels"></div>
 
-      <!-- 时钟按钮：左上角，每秒更新；点击切换「真实自转模式」（再点退出） -->
-      <button class="clock-btn" :class="{ spinning }" @click="toggleSpin">
-        {{ nowText }}
-      </button>
+      <!-- 左上角：时钟按钮（点击切换自转）+ 日期选择器（默认当日，改日期即改光照） -->
+      <div class="top-left">
+        <button class="clock-btn" :class="{ spinning }" @click="toggleSpin">
+          {{ nowText }}
+        </button>
+        <!-- 日期选择器 + 天数滑块：仅自转模式显示（静止态无昼夜光照，日期无意义） -->
+        <input
+          v-if="spinning"
+          type="date"
+          class="date-input"
+          :value="dateValue"
+          @change="onDateChange"
+        />
+        <!-- 年内天数滑块：与日期选择器双向联动 -->
+        <input
+          v-if="spinning"
+          type="range"
+          class="day-slider"
+          min="1"
+          max="365"
+          :value="dayValue"
+          @input="onDaySlide"
+        />
+      </div>
 
       <!-- 国家信息面板：1 国单列 / 2 国按点选顺序并排对比 -->
       <div
@@ -63,7 +83,7 @@
  *   panel-rows.js    信息面板行定义
  *   palette.js       调色板尺寸/颜色常量 + DataTexture 创建
  *   coloring.js      索引贴图邻接分析 + 贪心图着色
- *   three-objects.js 渐变背景/光线箭头/地球材质/地轴纬圈工厂
+ *   three-objects.js 星空背景/光线箭头/地球材质/地轴纬圈工厂
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
@@ -77,7 +97,7 @@ import {
   EARTH_TILT_DEG,
   SPIN_DEG_PER_SEC,
   SPIN_HOURS_PER_SEC,
-  solarDeclinationDeg,
+  orbitalAngle,
 } from '@/views/earth/solar';
 import { panelRows } from '@/views/earth/panel-rows';
 import {
@@ -108,8 +128,8 @@ import {
 const layoutRef = ref(null);
 const labelsRef = ref(null);
 
-// —— 模拟日期：?date= 解析一次（无参数 = 真实今天） ——
-const { date: simDate, text: simDateText } = parseSimDate();
+// —— 模拟日期：?date= 解析一次（无参数 = 真实今天）；日期选择器可再改 ——
+let { date: simDate, text: simDateText } = parseSimDate();
 
 // —— 时钟按钮 / 自转模式 / 信息面板的响应式状态 ——
 const nowText = ref('');
@@ -117,9 +137,45 @@ let clockTimer = null;
 let spinning = ref(false);
 const panel = ref({ visible: false, countries: [] });
 
+/* ===================== 日期选择器 ===================== */
+const pad2 = (n) => String(n).padStart(2, '0');
+// 年内第几天（1~365/366），滑块用
+const dayOfYear = (d) =>
+  Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+
+// 输入框值 YYYY-MM-DD：初始 = URL 日期或当日
+const dateValue = ref(
+  simDateText ??
+    `${simDate.getFullYear()}-${pad2(simDate.getMonth() + 1)}-${pad2(simDate.getDate())}`,
+);
+const dayValue = ref(dayOfYear(simDate));
+
+// 统一入口：新日期 → 更新两个控件值 + 时钟文字 + 自转中的光照
+function applySimDate(date) {
+  simDate = date;
+  simDateText = `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  dateValue.value = simDateText;
+  dayValue.value = dayOfYear(date);
+  nowText.value = fmtNow();
+  if (spinning.value) updateSunDirection(); // 自转中：按新日期重算光照
+}
+
+function onDateChange(e) {
+  const v = e.target.value; // 'YYYY-MM-DD'，清空时为 ''
+  if (!v) return;
+  const [y, m, d] = v.split('-').map(Number);
+  applySimDate(new Date(y, m - 1, d, 12)); // 中午 12:00，避免跨时区日界（同 date.js 口径）
+}
+
+function onDaySlide(e) {
+  const day = +e.target.value;
+  // 保持当前年份，只改年内天数
+  applySimDate(new Date(simDate.getFullYear(), 0, day, 12));
+}
+
 /* —— 模式矩阵状态机（每模式一份完整快照） ——
  *   modeStates.idle.MCamera = 静止模式相机矩阵（用户拖拽改变 → 离开静止态时刷新）
- *   modeStates.spin.MCamera = 自转模式相机矩阵 = 初始机位（恒定，初始化固化）
+ *   modeStates.spin.MCamera = 自转模式相机矩阵 = −Z 轴机位（恒定，初始化固化）
  *   modeStates.*.MObj       = 地球对象矩阵状态（组倾斜 rotation.z + 球自转 rotation.y）
  *
  * 规则：
@@ -135,7 +191,7 @@ const modeStates = {
     MObj: { groupRotationZ: 0, meshSpinY: 0 },
   },
   spin: {
-    MCamera: null, // Matrix4：自转态相机矩阵 = 初始机位（初始化固化，恒定）
+    MCamera: null, // Matrix4：自转态相机矩阵 = −Z 轴机位（初始化固化，恒定）
     MObj: {
       groupRotationZ: THREE.MathUtils.degToRad(EARTH_TILT_DEG),
       meshSpinY: 0,
@@ -154,9 +210,9 @@ let canvas = null;
 let earthGroup = null; // 承载显示球的组：倾斜施加在组上，球只做 Y 轴自转
 let geometry = null; // 两个球共享的 SphereGeometry
 let pickingGroup = null; // 拾取球所在组：每帧同步显示球 rotation.y，保证拾取命中
-let bgMesh = null; // 渐变背景（挂相机）
-let bgSunUniform = null; // 背景渐变方向 uniform（屏幕空间太阳方向）
-let sunRaysGroup = null; // canvas 左侧 4 条光线箭头（挂相机）
+let bgMesh = null; // 星空背景（挂相机，仅自转模式显示）
+let bgAspectUniform = null; // 背景 aspect uniform（防星点拉扁）
+let sunRaysGroup = null; // 4 条光线箭头（世界空间，绕 Y 随公转定位）
 let earthMatApi = null; // 显示球材质 API（取 sunDirVec / sunLightUniform）
 
 // —— 拾取 / 调色板 ——
@@ -187,7 +243,6 @@ const settings = {
 };
 
 // —— 计算用临时对象（避免函数内反复 new） ——
-const screenTmp = new THREE.Vector3();
 const tempV = new THREE.Vector3();
 const cameraToPoint = new THREE.Vector3();
 const cameraPosition = new THREE.Vector3();
@@ -223,6 +278,19 @@ function stopClock() {
   clockTimer = null;
 }
 
+/* 太阳方向：由公转角度 θ 直接给出，始终在黄道面（xoz 平面）内。
+ * 地轴固定向 −X 倾斜（组 rotation.z = +ε），θ=0（夏至）时太阳在 −X：
+ * 北极倾向太阳 → 赤纬 +ε；θ=π（冬至）太阳在 +X → 赤纬 −ε。与相机方位无关。
+ * startSpin 与日期变更时调用 */
+function updateSunDirection() {
+  const theta = orbitalAngle(simDate);
+  // 从北黄极俯视逆时针：夏至 −X → 秋分 +Z → 冬至 +X → 春分 −Z
+  earthMatApi.sunDirVec.set(-Math.cos(theta), 0, Math.sin(theta));
+
+  camera.updateMatrixWorld(); // decompose 后矩阵未刷新，先同步（startSpin 场景）
+  updateSunRays(sunRaysGroup, earthMatApi.sunDirVec);
+}
+
 /* ===================== 自转模式状态机 ===================== */
 function toggleSpin() {
   if (spinning.value) {
@@ -239,16 +307,15 @@ function startSpin() {
   // 已选国家全部取消，palette 同步复位；面板常关
   unselectAllCountries();
   panel.value.visible = false;
-  const sunLightUniform = earthMatApi.getSunLightUniform();
-  if (sunLightUniform) sunLightUniform.value = 1; // 开昼夜光照
-  bgMesh.visible = true; // 开渐变背景（亮→暗）
-  scene.background = null; // 纯色背景让位，避免盖不住渐变
+  earthMatApi.setSunLight(1); // 开昼夜光照（着色器未编译时也安全）
+  bgMesh.visible = true; // 开星空背景
+  scene.background = null; // 纯色背景让位，避免盖不住星空
 
   /* —— 模式切换：应用 spin 模式快照 —— */
   // ① 静止态完整快照：相机矩阵 + 地球姿态（用户此刻「看着美国」的完整视觉状态）
   modeStates.idle.MCamera.copy(camera.matrixWorld);
   modeStates.idle.MObj.meshSpinY = earthGroup.children[0].rotation.y;
-  // ② 自转态相机矩阵整组恢复（恒为初始机位）
+  // ② 自转态相机矩阵整组恢复（恒为 −Z 轴机位）
   modeStates.spin.MCamera.decompose(
     camera.position,
     camera.quaternion,
@@ -260,35 +327,8 @@ function startSpin() {
   if (pickingGroup)
     pickingGroup.children[0].rotation.y = modeStates.spin.MObj.meshSpinY;
 
-  // 太阳方向：水平分量取「屏幕左」，仰角 δ 沿【地轴】抬起。
-  // 赤纬 δ = 太阳方向与赤道面的夹角，合成必须基于赤道面：
-  //   ① 地轴（世界空间）= 地球组倾斜后的 +Y
-  //   ② 屏幕左方向投影到赤道面
-  //   ③ sunDir = ② × cos δ + 地轴 × sin δ
-  const camDir = new THREE.Vector3();
-  camera.getWorldDirection(camDir);
-  const camRight = new THREE.Vector3()
-    .crossVectors(camDir, new THREE.Vector3(0, 1, 0))
-    .normalize();
-  const axis = new THREE.Vector3(0, 1, 0)
-    .applyQuaternion(earthGroup.quaternion)
-    .normalize();
-  const sunH = camRight.clone().multiplyScalar(-1); // 屏幕左
-  sunH.addScaledVector(axis, -sunH.dot(axis)).normalize(); // 投影进赤道面
-  const decl = THREE.MathUtils.degToRad(solarDeclinationDeg(simDate));
-  earthMatApi.sunDirVec
-    .copy(sunH)
-    .multiplyScalar(Math.cos(decl))
-    .addScaledVector(axis, Math.sin(decl))
-    .normalize();
-
-  // 背景渐变方向 = 太阳方向在屏幕空间的投影（相机视空间 xy）
-  screenTmp
-    .copy(earthMatApi.sunDirVec)
-    .transformDirection(camera.matrixWorldInverse);
-  bgSunUniform.value.set(screenTmp.x, screenTmp.y).normalize();
+  updateSunDirection(); // 太阳方向（光线箭头）
   sunRaysGroup.visible = true;
-  updateSunRays(sunRaysGroup, camera, bgSunUniform);
   nowText.value = fmtNow(); // 按钮立刻切成「年月日 x.x小时/秒」
   spinLastT = performance.now();
   spinRafId = requestAnimationFrame(spinLoop);
@@ -299,9 +339,8 @@ function stopSpin() {
   cancelAnimationFrame(spinRafId);
   spinRafId = 0;
   controls.enabled = true;
-  const sunLightUniform = earthMatApi.getSunLightUniform();
-  if (sunLightUniform) sunLightUniform.value = 0; // 关昼夜光照，恢复平面无明暗
-  if (bgMesh) bgMesh.visible = false; // 关渐变背景
+  earthMatApi.setSunLight(0); // 关昼夜光照，恢复平面无明暗
+  if (bgMesh) bgMesh.visible = false; // 关星空背景
   if (sunRaysGroup) sunRaysGroup.visible = false; // 关光线箭头
   if (scene) scene.background = new THREE.Color('#246'); // 恢复纯色背景
   if (earthGroup) {
@@ -336,7 +375,6 @@ function spinLoop(now) {
   );
   mesh.rotation.y = modeStates.spin.MObj.meshSpinY;
   if (pickingGroup) pickingGroup.children[0].rotation.y = mesh.rotation.y;
-  updateSunRays(sunRaysGroup, camera, bgSunUniform);
   updateLabels();
 
   renderer.render(scene, camera);
@@ -353,15 +391,15 @@ function init() {
   camera.position.z = 2.5;
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color('#246');
-  // 渐变背景 + 光线箭头：均挂相机（scene.add(camera) 后随相机渲染，固定屏幕空间）
+  scene.background = new THREE.Color('#246'); // 静止态纯色背景（自转态换星空）
+  // 星空背景挂相机（固定屏幕空间，仅自转模式显示）；光线箭头在世界空间（绕 Y 随公转定位）
   const bg = createBackground();
   bgMesh = bg.mesh;
-  bgSunUniform = bg.sunUniform;
+  bgAspectUniform = bg.aspectUniform;
   camera.add(bgMesh);
   scene.add(camera);
   sunRaysGroup = createSunRaysGroup();
-  camera.add(sunRaysGroup);
+  scene.add(sunRaysGroup);
 
   // —— 拾取场景：唯一内容是「索引贴图版」地球（每像素颜色 = 国家 ID） ——
   pickingScene = new THREE.Scene();
@@ -483,7 +521,7 @@ function buildLabels() {
     countryInfo.elem = elem;
   }
 
-  // 初始机位：经度对准中国（约东经 105°），纬度放平；相机摆在该经度对面（+π）
+  // 静止态初始机位：经度对准中国（约东经 105°），纬度放平；相机摆在该经度对面（+π）
   const cameraDistance = 2.5;
   const chinaLon = countryInfos.find((c) => c.name === 'China')?.lon ?? 105;
   const angle = THREE.MathUtils.degToRad(chinaLon) + lonFudge + Math.PI;
@@ -493,10 +531,14 @@ function buildLabels() {
     Math.cos(angle) * cameraDistance,
   );
   camera.lookAt(0, 0, 0);
-  // 初始机位固化：spin.MCamera 恒定专用；idle.MCamera 此后随拖拽被覆盖
   camera.updateMatrixWorld(true);
-  modeStates.spin.MCamera = camera.matrixWorld.clone();
-  modeStates.idle.MCamera = camera.matrixWorld.clone();
+  modeStates.idle.MCamera = camera.matrixWorld.clone(); // 静止态起点，此后随拖拽被覆盖
+  // 自转态机位（恒定）：严格置于 −Z 轴（东经 90° 对面），此时相机右方恰为 −X，
+  // 夏至太阳方向 (−1,0,0) 投影到屏幕严格正右（无深度分量）
+  const spinPos = new THREE.Vector3(0, 0, -cameraDistance);
+  modeStates.spin.MCamera = new THREE.Matrix4()
+    .lookAt(spinPos, new THREE.Vector3(), camera.up)
+    .setPosition(spinPos);
 }
 
 /* ===================== 标签更新：背面剔除 + 3D→CSS 投影 ===================== */
@@ -657,6 +699,7 @@ function onResize() {
   renderer.setSize(rect.width, rect.height);
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
+  if (bgAspectUniform) bgAspectUniform.value = camera.aspect; // 星点防拉扁
   if (resized.x !== rect.width || resized.y !== rect.height) {
     scheduleRender();
   }
@@ -688,7 +731,7 @@ function dispose() {
   loadedTextures.forEach((t) => t.dispose());
   loadedTextures = [];
   bgMesh = null;
-  bgSunUniform = null;
+  bgAspectUniform = null;
   sunRaysGroup = null;
   paletteTexture?.dispose();
   paletteTexture = null;
@@ -753,12 +796,24 @@ onBeforeUnmount(() => {
     -1px 0 0 #000;
 }
 
-/* ---- 左上角时钟按钮 ---- */
-.clock-btn {
+/* ---- 左上角容器 ---- */
+.top-left {
   position: absolute;
   top: 10px;
   left: 10px;
   z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none; /* 容器本身不拦截，子元素各自处理 */
+}
+
+.top-left > * {
+  pointer-events: auto;
+}
+
+/* ---- 时钟按钮 ---- */
+.clock-btn {
   font-size: 12px;
   padding: 0 10px;
   height: 30px;
@@ -777,6 +832,36 @@ onBeforeUnmount(() => {
   color: #000;
   background: var(--color-primary);
   border-color: #000;
+}
+
+/* ---- 日期选择器：与时钟按钮同风格 ---- */
+.date-input {
+  height: 30px;
+  padding: 0 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+/* 日历图标反白（默认黑色在深色底上看不清） */
+.date-input::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+/* ---- 年内天数滑块 ---- */
+.day-slider {
+  width: 140px;
+  height: 30px;
+  margin: 0;
+  accent-color: var(--color-primary); /* 轨道/拇指用主题黄 */
+  background: transparent;
+  cursor: pointer;
 }
 
 /* ---- 国家信息面板（1 国单列 / 2 国并排对比） ---- */

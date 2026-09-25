@@ -163,6 +163,46 @@ let containerHalfY = 0;
 let mouseX = 10000; // 初始放很远 = 无猎物
 let mouseY = 10000;
 
+/* —— 自动驱鸟：无真实鼠标输入时，虚拟猎物周期性巡游（用户一动鼠标即让位） —— */
+const AUTO_IDLE_MS = 3000; // 鼠标静默多久后启用自动模式
+const AUTO_SWEEP_MS = 1500; // 单次巡游时长（缓入缓出扫过一段路径）
+const AUTO_REST_MS = 2500; // 两次巡游之间的休息
+let lastPointerAt = 0; // 最近一次真实鼠标移动时刻（0 = 页面加载后即自动）
+let autoNextAt = 0; // 下次巡游开始的时刻
+let autoSweep = null; // 进行中的巡游 {fromX, fromY, toX, toY, start}
+
+function autoPredator(now) {
+  if (now - lastPointerAt < AUTO_IDLE_MS) {
+    autoSweep = null; // 用户在操作：自动模式立即让位
+    return;
+  }
+  // 留 20% 边距：虚拟猎物不出主视野
+  const halfX = containerHalfX * 0.8;
+  const halfY = containerHalfY * 0.8;
+  if (autoSweep) {
+    // 巡游中：smoothstep 插值，起点缓出终点缓入，鸟群被连续驱赶而非瞬移
+    const k = Math.min(1, (now - autoSweep.start) / AUTO_SWEEP_MS);
+    const e = k * k * (3 - 2 * k);
+    mouseX = autoSweep.fromX + (autoSweep.toX - autoSweep.fromX) * e;
+    mouseY = autoSweep.fromY + (autoSweep.toY - autoSweep.fromY) * e;
+    if (k >= 1) {
+      autoSweep = null;
+      autoNextAt = now + AUTO_REST_MS;
+    }
+    return;
+  }
+  if (now >= autoNextAt) {
+    const rand = (m) => (Math.random() * 2 - 1) * m;
+    autoSweep = {
+      fromX: rand(halfX),
+      fromY: rand(halfY),
+      toX: rand(halfX),
+      toY: rand(halfY),
+      start: now,
+    };
+  }
+}
+
 /* ===================== 模型加载 → 烘焙动画纹理 + 拼装鸟群几何 ===================== */
 function nextPowerOf2(n) {
   return Math.pow(2, Math.ceil(Math.log(n) / Math.log(2)));
@@ -495,6 +535,7 @@ function onStageResize() {
 
 function onPointerMove(event) {
   if (event.isPrimary === false) return;
+  lastPointerAt = performance.now(); // 真实输入 → 暂停自动驱鸟
   const rect = renderer.domElement.getBoundingClientRect();
   mouseX = event.clientX - rect.left - containerHalfX;
   mouseY = event.clientY - rect.top - containerHalfY;
@@ -515,6 +556,7 @@ function render() {
   if (materialShader) materialShader.uniforms['delta'].value = delta;
 
   // predator 归一化到 [-0.5, 0.5]，乘 BOUNDS 得世界坐标；用过一次即重置到远处
+  autoPredator(now); // 鼠标静默时由虚拟猎物巡游驱动 mouseX/mouseY
   velocityUniforms['predator'].value.set(
     (0.5 * mouseX) / containerHalfX,
     (-0.5 * mouseY) / containerHalfY,
