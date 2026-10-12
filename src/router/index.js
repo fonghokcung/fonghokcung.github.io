@@ -38,6 +38,18 @@ const router = createRouter({
       component: () => import('../views/FlowingWater.vue'),
     },
     {
+      path: '/lod',
+      name: 'LOD',
+      zh: 'LOD',
+      component: () => import('../views/LevelofDetail.vue'),
+    },
+    {
+      path: '/par',
+      name: 'Particle',
+      zh: '粒子',
+      component: () => import('../views/ParticleEffe.vue'),
+    },
+    {
       path: '/manUal',
       name: 'ManUal',
       zh: 'ManUal',
