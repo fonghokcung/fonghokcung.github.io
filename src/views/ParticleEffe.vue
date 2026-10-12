@@ -34,12 +34,12 @@ const layoutRef = ref(null);
 const canvasRef = ref(null);
 
 /* ===================== 排版 / 节奏参数 ===================== */
-const LINE_H = 46; // 行距（px）
-const STANZA_GAP = 34; // 段落额外间隙（px）
-const BASE_FS = 22; // 统一字号（px）
+const LINE_H = 72; // 行距（px）
+const STANZA_GAP = 48; // 段落额外间隙（px）
+const BASE_FS = 44; // 统一字号（px）
 const LINE_TIME = 3.4; // 每句停留（秒）
 const LAST_HOLD = 4.6; // 末句停留（秒），结束后循环
-const EXIT_T = 4.8; // 化沙动画总时长（秒）——调试慢速版，定稿后改回 1.6
+const EXIT_T = 4; // 化沙动画总时长（秒）
 const FONT = '"LXGW WenKai", "Noto Sans SC", "Microsoft YaHei", sans-serif'; // 霞鹜文楷优先
 const FONT_WEIGHT = 700; // 文楷最粗为 Bold（900 会被浏览器仿粗合成）
 const COLOR_BASE = '#ffffff'; // 当前句：白色
@@ -64,8 +64,8 @@ let lastTime = 0;
 let exitState = null;
 let exitLine = -1; // 正在化沙的句子下标，-1 表示无
 {
-  const PX = 1.4; // 采样步长（px），≈1.4px 网格取出生点
-  const COPIES = 8; // 每个出生点克隆成几粒沙（直接控制粒子总量倍数）
+  const PX = 4; // 采样步长（px），字号翻倍后相应放大，控制出生点总量
+  const COPIES = 4; // 每个出生点克隆成几粒沙（直接控制粒子总量倍数）
   exitState = {
     PX,
     COPIES,
@@ -173,8 +173,31 @@ function draw() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
-  // 普通歌词行：主句白色带光晕，其余绿色按离中心距离衰减透明度；
-  // 化沙中的旧句保持白色高亮（isWhite），新主句等化沙结束才点亮
+  // 飞沙层先画：粒子始终垫在歌词后面，不遮挡文字
+  if (exiting) {
+    const er = exitState;
+    ctx.save();
+    ctx.translate(viewW / 2, centerY);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    for (let i = 0; i < er.n; i++) {
+      const age = er.t - er.delay[i];
+      if (age <= 0) continue;
+      const x = er.sx[i];
+      const y = er.sy[i];
+      // 透明度分段：前 70% 寿命保持完全不透明（充分呈现），
+      // 只在最后 30% 线性淡出，消失时间占比小
+      const flyT = age / (EXIT_T - 1.4);
+      const a = flyT >= 1 ? 0 : flyT < 0.7 ? 1 : 1 - (flyT - 0.7) / 0.3;
+      if (a <= 0.02) continue;
+      ctx.globalAlpha = a;
+      const s = 2; // 粒子尺寸（px）
+      ctx.fillRect(x - s / 2, y - s / 2, s, s);
+    }
+    ctx.restore();
+  }
+
+  // 歌词行后画：主句黄色带光晕，其余绿色按离中心距离衰减透明度；
+  // 化沙中的旧句保持黄色高亮（isWhite），新主句等化沙结束才点亮
   for (let i = 0; i < LINES.length; i++) {
     const y = offsets[i] - scrollCur + centerY;
     if (y < -LINE_H * 2 || y > viewH + LINE_H * 2) continue; // 视口外跳过
@@ -186,31 +209,10 @@ function draw() {
     ctx.fillStyle = isWhite ? COLOR_BASE : COLOR_DIM;
     ctx.globalAlpha = 0.9;
     if (isWhite) {
-      ctx.shadowColor = 'rgba(255, 255, 255, 0.5)';
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.55)'; // 与主句同色系的光晕
       ctx.shadowBlur = 18;
     }
     ctx.fillText(LINES[i].text, 0, 0);
-    ctx.restore();
-  }
-
-  // 飞沙：只画已起飞的粒子，透明度随飞行进度衰减
-  if (exiting) {
-    const er = exitState;
-    ctx.save();
-    ctx.translate(viewW / 2, centerY);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.98)';
-    for (let i = 0; i < er.n; i++) {
-      const age = er.t - er.delay[i];
-      if (age <= 0) continue;
-      const x = er.sx[i];
-      const y = er.sy[i];
-      const flyT = age / (EXIT_T - 1.4);
-      const a = Math.max(0, 1 - flyT);
-      if (a <= 0.02) continue;
-      ctx.globalAlpha = a;
-      const s = 2; // 粒子尺寸（px）
-      ctx.fillRect(x - s / 2, y - s / 2, s, s);
-    }
     ctx.restore();
   }
   ctx.globalAlpha = 1;
