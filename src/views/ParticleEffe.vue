@@ -2,8 +2,7 @@
   <ThreeLayout ref="layoutRef" @stage-resize="onResize">
     <template #default>
       <h2 class="txt-title">《光阴的歌》（东山少爷）</h2>
-      <!-- 歌词面板：直接复用 LINES（与画布同一数据源），gapBefore 渲染段落空隙；
-           外层容器限高，溢出出竖向滚动条 -->
+      <!-- 歌词面板：直接复用 LINES（与画布同一数据源），溢出出竖向滚动条 -->
       <div class="txt-scroll">
         <p class="txt-sub">
           <span
@@ -29,56 +28,10 @@
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeLayout from '@/components/ThreeLayout.vue';
+import LINES from '@/assets/lyrics-guangyin.js'; // 歌词数据（展平行列表）
 
 const layoutRef = ref(null);
 const canvasRef = ref(null);
-
-/* ===================== 歌词数据 ===================== */
-const STANZAS = {
-  a: [
-    '东山的蜗居换成合心新居',
-    '竟已丢失情趣',
-    '人大了后总左右失据',
-    '明明很讨厌雪茄却袋一堆',
-  ],
-  b: [
-    '西关的小姐后来随哪个姓',
-    '可有抹掉了率性',
-    '和昨天亲昵姊妹疏远末倾听',
-    '从今只重聚于婚庆',
-  ],
-  c: [
-    '全心唱歌 你有否爱过我的歌',
-    '陪伴你青春光景闯祸',
-    '每次痛着静坐 每次笑容傻傻',
-    '月光光有照地塘么',
-  ],
-  d: [
-    '全心唱歌 你记忆里有我的么',
-    '回望小北街口甜蜜如初',
-    '年少过 未受饿 跌碰过 如研磨',
-    '傻小子变老练的我',
-  ],
-  e: [
-    '年华如无法逆陀螺',
-    '再次奢想让我',
-    '快乐如提前能下课',
-    '在校道上拍拖',
-    '对老去光阴唱歌',
-  ],
-};
-// 演出顺序（副歌按原曲重复）
-const ORDER = ['a', 'b', 'c', 'd', 'b', 'c', 'd', 'e', 'c', 'd'];
-const FINAL_LINE = '我永远是傻傻的我';
-
-// 展平成单行列表，段落首行标记 gapBefore（渲染时留段落空隙）
-const LINES = [];
-for (const key of ORDER) {
-  STANZAS[key].forEach((text, i) => {
-    LINES.push({ text, gapBefore: i === 0 });
-  });
-}
-LINES.push({ text: FINAL_LINE, gapBefore: true });
 
 /* ===================== 排版 / 节奏参数 ===================== */
 const LINE_H = 46; // 行距（px）
@@ -87,7 +40,8 @@ const BASE_FS = 22; // 统一字号（px）
 const LINE_TIME = 3.4; // 每句停留（秒）
 const LAST_HOLD = 4.6; // 末句停留（秒），结束后循环
 const EXIT_T = 4.8; // 化沙动画总时长（秒）——调试慢速版，定稿后改回 1.6
-const FONT = '"Noto Sans SC", "Microsoft YaHei", sans-serif';
+const FONT = '"LXGW WenKai", "Noto Sans SC", "Microsoft YaHei", sans-serif'; // 霞鹜文楷优先
+const FONT_WEIGHT = 700; // 文楷最粗为 Bold（900 会被浏览器仿粗合成）
 const COLOR_BASE = '#ffffff'; // 当前句：白色
 const COLOR_DIM = '#42b883'; // 其余句
 
@@ -130,13 +84,13 @@ let exitLine = -1; // 正在化沙的句子下标，-1 表示无
 function sampleTextPoints(text, fs) {
   const off = document.createElement('canvas');
   const octx = off.getContext('2d', { willReadFrequently: true });
-  octx.font = `900 ${fs}px ${FONT}`;
+  octx.font = `${FONT_WEIGHT} ${fs}px ${FONT}`;
   const tw = Math.ceil(octx.measureText(text).width) + 8;
   const th = Math.ceil(fs * 1.5);
   off.width = tw;
   off.height = th;
   const c2 = off.getContext('2d');
-  c2.font = `900 ${fs}px ${FONT}`;
+  c2.font = `${FONT_WEIGHT} ${fs}px ${FONT}`;
   c2.fillStyle = '#fff';
   c2.textBaseline = 'middle';
   c2.fillText(text, 4, th / 2);
@@ -186,8 +140,8 @@ function startExit() {
     exitState.sy[i] = sy + (Math.random() - 0.5) * 2;
     // 冲量式初速：方向随机但偏向上（上方概率占大头，正下方极少），
     // 只靠阻尼减速
-    const edge = (sx / exitState.halfW + 1) / 2; // 0=行首 1=行尾
-    exitState.delay[i] = (1 - edge) * 1.4 + Math.random() * 0.2;
+    // 全部粒子同时起飞，仅保留极小随机抖动让爆发更自然
+    exitState.delay[i] = Math.random() * 0.06;
     const speed = 100 + Math.random() * 120; // 爆发速度（上抛射程约一半）
     // 方向偏置：95% 上半圆均匀随机（向上占大头），5% 全圆纯随机
     const r = Math.random();
@@ -215,7 +169,7 @@ function draw() {
   ctx.clearRect(0, 0, viewW, viewH);
   const centerY = viewH / 2;
   const exiting = exitState.t < EXIT_T; // 化沙进行中
-  ctx.font = `900 ${BASE_FS}px ${FONT}`;
+  ctx.font = `${FONT_WEIGHT} ${BASE_FS}px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -344,7 +298,20 @@ onMounted(() => {
   canvasEl.addEventListener('click', onClickStage);
   onResize();
   lastTime = performance.now();
-  rafId = requestAnimationFrame(loop);
+  // 显式触发霞鹜文楷加载再启动：canvas 经 JS 绘制不会自动触发 webfont 下载，
+  // 仅靠 fonts.ready 可能在字体就绪前就 resolve，导致首句回退雅黑
+  const kick = () => {
+    rafId = requestAnimationFrame(loop);
+  };
+  const probe = `${FONT_WEIGHT} 22px "LXGW WenKai"`;
+  if (document.fonts?.load) {
+    document.fonts
+      .load(probe, '光阴的歌')
+      .catch(() => {})
+      .then(() => kick());
+  } else {
+    kick();
+  }
 });
 
 onBeforeUnmount(() => {
