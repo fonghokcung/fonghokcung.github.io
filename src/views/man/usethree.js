@@ -44,9 +44,9 @@ export function useThreeTriangle(canvas) {
     },
   });
 
-  // 平面 2×2：顶点着色器直接输出裁剪空间坐标（gl_Position = vec4(position,1)），
-  // 裁剪空间宽高各 2，2×2 平面恰好铺满画布——碎片效果必须满幅，否则圆环被裁
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  // 平面 1×1：顶点着色器直接输出裁剪空间坐标（gl_Position = vec4(position,1)），
+  // 裁剪空间宽高各 2，1×1 平面占画布中间一半——与原生 webgl 版的半幅矩形对齐
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), material);
   scene.add(mesh);
 
   function resize() {
