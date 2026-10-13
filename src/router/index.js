@@ -44,6 +44,12 @@ const router = createRouter({
       component: () => import('../views/LevelofDetail.vue'),
     },
     {
+      path: '/tourbox',
+      name: 'tourbox',
+      zh: 'tourbox',
+      component: () => import('../views/ToolBox.vue'),
+    },
+    {
       path: '/par',
       name: 'Particle',
       zh: '粒子',
