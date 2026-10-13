@@ -21,6 +21,26 @@
 
     <template #stage>
       <div v-if="loading" class="loading">模型加载中…</div>
+      <!-- 选中零件的名称标注：白线 + 标签（ref 拿舞台容器做屏幕投影） -->
+      <div ref="labelLayerRef" class="label-layer">
+        <svg v-show="label.visible" class="label-svg">
+          <line
+            :x1="label.fromX"
+            :y1="label.fromY"
+            :x2="label.toX"
+            :y2="label.toY"
+            stroke="#fff"
+            stroke-width="1.5"
+          />
+          <circle :cx="label.fromX" :cy="label.fromY" r="3" fill="#fff" />
+        </svg>
+        <span
+          v-show="label.visible"
+          class="label-chip"
+          :style="{ left: label.chipX + 'px', top: label.chipY + 'px' }"
+          >{{ label.text }}</span
+        >
+      </div>
     </template>
   </ThreeLayout>
 </template>
@@ -37,12 +57,26 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
+import PART_NAME_MAP from '@/assets/tourbox.txt?raw'; // mesh名 → 官方零件名
 
 const layoutRef = ref(null);
 const loading = ref(true);
+const labelLayerRef = ref(null);
+// 标注层响应式状态：白线两端点 + 标签位置/文字
+const label = ref({
+  visible: false,
+  text: '',
+  fromX: 0,
+  fromY: 0,
+  toX: 0,
+  toY: 0,
+  chipX: 0,
+  chipY: 0,
+});
 
 // public/tourbox 下的模型清单（中文文件名由 Vite 原样代理，无需编码处理）
 const MODELS = [
+  { file: 'tourbox_mesh.glb', label: 'mesh版' },
   { file: '黑色.glb', label: '黑色' },
   { file: '白色.glb', label: '白色' },
   { file: '蓝色.glb', label: '蓝色' },
@@ -55,6 +89,22 @@ let camera = null;
 let controls = null;
 let rafId = 0;
 let disposed = false;
+// 拾取调试：raycaster + 指针事件（对照零件名用，定稿后删除）
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+let pickEnabled = false; // 模型加载完成后才启用
+
+// 解析零件对照表：'旋钮-wang...body67' → { meshName: '旋钮', partName: '旋钮' }
+const PARTS = Object.fromEntries(
+  PART_NAME_MAP.split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [label, meshName] = line.split('-');
+      return [meshName, label];
+    }),
+);
+const NAMED_PARTS = Object.keys(PARTS); // 14 个已知零件的 mesh 名
 
 /* ===================== 初始化 ===================== */
 function init() {
@@ -83,6 +133,9 @@ function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = true;
   controls.target.set(0, 0.8, 0);
+  renderer.domElement.addEventListener('contextmenu', (e) =>
+    e.preventDefault(),
+  );
 
   const grid = new THREE.GridHelper(20, 20, 0x3a4a63, 0x243044);
   scene.add(grid);
@@ -90,6 +143,8 @@ function init() {
   loadModels();
   onResize();
   startLoop();
+  renderer.domElement.addEventListener('pointerdown', onPointerDown);
+  renderer.domElement.addEventListener('pointerup', onPointerUp);
 }
 
 /* ===================== 加载并排布模型 ===================== */
@@ -101,6 +156,12 @@ function loadOne(item) {
       (gltf) => {
         if (disposed) return resolve(null);
         const model = gltf.scene;
+        // 只打印 tourbox_mesh 各 mesh 的名字（调试用，定稿后删除）
+        if (item.file === 'tourbox_mesh.glb') {
+          model.traverse((o) => {
+            if (o.isMesh) console.log(`mesh: ${o.name || '(未命名)'}`);
+          });
+        }
 
         // 统一缩放：按包围盒最高维度归一（模型大小不一也能并排等高）
         const box = new THREE.Box3().setFromObject(model);
@@ -132,33 +193,156 @@ async function loadModels() {
   const boxes = settled
     .map((r) => (r.status === 'fulfilled' ? r.value : null))
     .filter(Boolean);
-  for (const b of boxes) root.add(b.model);
+  for (const b of boxes) {
+    b.model.userData.gltfRoot = true; // 右键对焦时识别 glb 根的标记
+    root.add(b.model);
+  }
 
   arrange(boxes);
   loading.value = false;
+  pickEnabled = true; // 模型就位，启用拾取
 }
 
-// 水平等间距排开：间距 = 相邻宽度均值的一半，整体居中于原点
+// 点选零件：打印 name + 完整对象 + 高亮成黄色（对照零件名用，定稿后删除）
+let pickedMesh = null; // 当前选中零件（左键：高亮）
+let focusModel = null; // 当前对焦的 glb 根（右键：设为 controls.target）
+// 点击 vs 拖拽判定：按下记位置，抬起时位移 ≤ 4px 且时长 < 400ms 才算点击
+let downInfo = null; // { x, y, button, time }
+function onPointerDown(e) {
+  if (!pickEnabled || disposed) return;
+  if (e.button !== 0 && e.button !== 2) return;
+  downInfo = { x: e.clientX, y: e.clientY, button: e.button, time: Date.now() };
+}
+
+function onPointerUp(e) {
+  if (!downInfo || disposed || e.button !== downInfo.button) {
+    downInfo = null;
+    return;
+  }
+  const dx = e.clientX - downInfo.x;
+  const dy = e.clientY - downInfo.y;
+  const moved = Math.hypot(dx, dy) > 4; // 拖拽：交给 controls，不拾取
+  const held = Date.now() - downInfo.time > 400; // 长按：不拾取
+  const btn = downInfo.button;
+  downInfo = null;
+  if (moved || held) return;
+  pickAt(e, btn);
+}
+
+// 拾取本体：btn 0=左键（高亮零件） 2=右键（对焦模型）
+function pickAt(e, btn) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(pointer, camera);
+  const hits = raycaster.intersectObjects(scene.children, true);
+  const mesh = hits.find((h) => h.object.isMesh)?.object;
+  const hitName = mesh?.name || '';
+  // 只认对照表里的 14 个零件；未命中（空白或非键位零件）一律按取消选中处理
+  const isNamedPart = mesh && NAMED_PARTS.includes(hitName);
+
+  // 未命中已知零件：取消当前选中（恢复原材质），隐藏标注
+  if (!isNamedPart) {
+    if (pickedMesh?.userData._origMat) {
+      pickedMesh.material = pickedMesh.userData._origMat;
+      delete pickedMesh.userData._origMat;
+    }
+    pickedMesh = null;
+    label.value.visible = false;
+    return;
+  }
+
+  // 右键：找到零件所属 glb 的根节点，把其包围盒中心设为 controls.target
+  if (btn === 2) {
+    let root = mesh;
+    while (root.parent && !root.userData.gltfRoot) root = root.parent;
+    focusModel = root;
+    const box = new THREE.Box3().setFromObject(root);
+    box.getCenter(controls.target);
+    controls.update();
+    console.log(
+      `focus target → ${focusModel.name || '(glb根)'}`,
+      controls.target,
+    );
+    return;
+  }
+
+  // 左键：高亮 + 打印（材质是共享的，需克隆后整卡换色）
+  if (pickedMesh && pickedMesh !== mesh) {
+    pickedMesh.material = pickedMesh.userData._origMat;
+    delete pickedMesh.userData._origMat;
+  }
+  if (!mesh.userData._origMat) {
+    mesh.userData._origMat = mesh.material; // 备份原材质
+    mesh.material = mesh.material.clone(); // 克隆后改色，不污染同材质零件
+    mesh.material.color.set(0xffd509);
+    if (mesh.material.emissive) {
+      mesh.material.emissive.set(0x664400);
+    }
+  }
+  pickedMesh = mesh;
+  console.log(`picked: ${PARTS[hitName]} (${hitName})`);
+  updateLabel(mesh, PARTS[hitName]);
+}
+
+// 把选中零件的世界坐标投影到屏幕：起点=零件中心，终点=上方 1/3 随机位置
+const _v = new THREE.Vector3();
+function updateLabel(mesh, text) {
+  const layer = labelLayerRef.value;
+  if (!layer) return;
+  const lw = layer.clientWidth;
+  const lh = layer.clientHeight;
+  // 零件包围盒中心 → 世界坐标 → 屏幕坐标
+  const box = new THREE.Box3().setFromObject(mesh);
+  box.getCenter(_v);
+  _v.project(camera);
+  const fromX = ((_v.x + 1) / 2) * lw;
+  const fromY = ((1 - _v.y) / 2) * lh;
+  // 上方 1/3 区域随机落点（留 16px 边距）
+  const toX = 16 + Math.random() * Math.max(1, lw - 32);
+  const toY = 16 + Math.random() * Math.max(1, lh / 3 - 32);
+  label.value = {
+    visible: true,
+    text,
+    fromX,
+    fromY,
+    toX,
+    toY,
+    // 标签贴在线的终点上方
+    chipX: toX,
+    chipY: toY - 28,
+  };
+}
+
+// 水平等间距排开：mesh版居中于原点并作为取景目标，其余模型在其右侧排开
 function arrange(boxes) {
   if (!boxes.length) return; // 全部加载失败：维持默认相机位，避免除零得 0 视距
   const GAP = 0.6;
-  const totalW =
-    boxes.reduce((sum, b) => sum + b.width, 0) + GAP * (boxes.length - 1);
-  let cursor = -totalW / 2;
+  const main = boxes.find((b) => b.label === 'mesh版') || boxes[0]; // 主角模型
+
+  // 主角居中：X/Z 归零（主角中心 = 世界原点），底部已对齐 y=0
+  const mainBox = new THREE.Box3().setFromObject(main.model);
+  const mainCenter = mainBox.getCenter(new THREE.Vector3());
+  main.model.position.x -= mainCenter.x;
+  main.model.position.z -= mainCenter.z;
+
+  // 其余模型从主角右侧依次排开
+  let cursor = mainBox.max.x + GAP;
   for (const b of boxes) {
-    b.model.position.x = cursor + b.width / 2;
-    cursor += b.width + GAP;
+    if (b === main) continue;
+    const bb = new THREE.Box3().setFromObject(b.model);
+    const w = bb.getSize(new THREE.Vector3()).x;
+    b.model.position.x += cursor - bb.min.x;
+    cursor += w + GAP;
   }
 
-  // 相机框住全部：按整体包围盒对角线定距离
-  const all = new THREE.Box3();
-  for (const b of boxes) all.expandByObject(b.model);
-  const size = all.getSize(new THREE.Vector3());
-  const center = all.getCenter(new THREE.Vector3());
+  // 相机取景：以主角中心为 target，视距按主角尺寸定
+  const finalBox = new THREE.Box3().setFromObject(main.model);
+  const center = finalBox.getCenter(new THREE.Vector3());
+  const size = finalBox.getSize(new THREE.Vector3());
   const dist =
-    (Math.max(size.x, size.y) / 2 / Math.tan((Math.PI / 180) * 22.5)) * 1.25;
-  // 真正定机位的一步：抬高 35% 高度俯视，dist 决定框住全部的视距
-  camera.position.set(center.x, center.y + size.y * 0.35, center.z + dist);
+    (Math.max(size.x, size.y) / 2 / Math.tan((Math.PI / 180) * 22.5)) * 2.8;
+  camera.position.set(center.x, center.y + size.y * 1.4, center.z + dist);
   controls.target.copy(center);
   controls.update();
 }
@@ -172,7 +356,8 @@ const PHI_AMP = 0.75; // 俯仰振荡幅值（rad ≈ 43°）：基准角 ±43°
 const RHO_AMP = 1.2; // 视距振荡幅值（世界单位）：靠近看细节再拉远看全景
 const PHI_MIN = 0.1; // 俯仰下限（rad ≈ 6°，接近地面平视）
 const PHI_MAX = 1.45; // 俯仰上限（rad ≈ 83°，接近正上方俯视）
-let autoOrbit = true;
+// 漫游式公转开关
+let autoOrbit = false;
 // 漫游基准（arrange 取景后记录；用户拖拽后以新位姿为基准重设）
 const orbitBase = { phi: 0.35, rho: 8 };
 // 随机相位：每次进页面轨迹不同
@@ -254,7 +439,16 @@ function onResize() {
 
 function dispose() {
   disposed = true;
+  pickEnabled = false;
+  // 恢复被高亮零件的原材质（克隆材质随 dispose 一并释放）
+  if (pickedMesh?.userData._origMat) {
+    pickedMesh.material = pickedMesh.userData._origMat;
+    delete pickedMesh.userData._origMat;
+  }
+  pickedMesh = null;
   cancelAnimationFrame(rafId);
+  renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
+  renderer?.domElement.removeEventListener('pointerup', onPointerUp);
   controls?.dispose();
   scene?.traverse((o) => {
     if (o.isMesh) {
@@ -289,5 +483,30 @@ onBeforeUnmount(() => {
   background: rgba(13, 27, 42, 0.8);
   color: #e6edf3;
   font-size: 13px;
+}
+.label-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* 不挡住 canvas 的拖拽/拾取 */
+  z-index: 5;
+  overflow: hidden;
+}
+.label-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.label-chip {
+  position: absolute;
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: rgba(13, 27, 42, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: nowrap;
+  transform: translateX(-50%); /* 以线的终点为标签水平中心 */
 }
 </style>

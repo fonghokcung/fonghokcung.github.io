@@ -1,0 +1,17 @@
+
+旋钮-wang8DFC3CCAeg4v_body67
+滚轮-gunlun_NEW
+转盘-wang8DFC3CCAeg4v_body37
+长键-wang8DFC3CCAeg4v_body114
+短键-wang8DFC3CCAeg4v_body116
+横键-wang8DFC3CCAeg4v_body118
+侧键-wang8DFC3CCAeg4v_body78
+十字键（上）-wang8DFC3CCAeg4v_body73
+十字键（下）-wang8DFC3CCAeg4v_body61
+十字键（左）-wang8DFC3CCAeg4v_body55
+十字键（右）-wang8DFC3CCAeg4v_body2
+Tour键-wang8DFC3CCAeg4v_body81
+C1-wang8DFC3CCAeg4v_body76
+C2-wang8DFC3CCAeg4v_body65
+
+
