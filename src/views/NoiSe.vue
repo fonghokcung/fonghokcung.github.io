@@ -150,7 +150,7 @@ function init() {
 const TARGET_HELI_SIZE = 0.4;
 function loadHelicopter() {
   new GLTFLoader().load(
-    '/models/helicopter.glb',
+    `${import.meta.env.BASE_URL}models/helicopter.glb`,
     (gltf) => {
       if (disposed) return;
       const heli = gltf.scene;

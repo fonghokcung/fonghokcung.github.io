@@ -1,13 +1,22 @@
 <template>
   <ThreeLayout ref="layoutRef" @stage-resize="onResize">
     <template #default>
-      <h2 class="txt-title">TourBox · 模型并排陈列</h2>
+      <h2 class="txt-title">ToolBox · GLB 资产陈列与自动环绕取景</h2>
       <p class="txt-sub">
-        并排加载 /tourbox 目录下的 4 个 GLB 模型（白 / 蓝 / 黄 / 黑 四色），
-        各自独立摆放、统一缩放、底部对齐，OrbitControls 自由环视。
-        加载完成后底部对齐（y 归零）并自动取整体包围盒定相机距离。
+        批量加载策略：GLTFLoader + Promise.allSettled 并发拉取 4 个 GLB，
+        单模型失败降级为占位，页面永不阻塞；每个模型按包围盒最大维度
+        归一缩放，底部对齐后等间距排开，整体居中于原点。
       </p>
-      <p class="txt-hint">拖拽旋转 · 滚轮缩放 · 右键平移</p>
+      <p class="txt-sub">
+        自动取景：聚合整体包围盒，由相机 FOV 反算视距与俯仰，
+        保证任意模型组合一次入画。漫游相机以球坐标驱动——水平角匀速
+        公转，俯仰与视距大幅正弦振荡（可达近正上方俯视），随机相位让
+        每次进页面轨迹不同。
+      </p>
+      <p class="txt-hint">
+        用户拖拽/缩放时暂停漫游，松手 2s
+        后以新位姿为基准恢复，自动动画与人工操作无冲突
+      </p>
     </template>
 
     <template #stage>
@@ -17,9 +26,12 @@
 </template>
 
 <script setup>
-/* TourBox 演示页：GLTFLoader 并排载入 public/tourbox 下的 4 个 glb。
- * 排列策略：各模型独立包围盒 → 底部对齐 + 水平等间距排开 →
- * 统一缩放到相同高度，相机自动框住全部模型 */
+/* ToolBox 演示页：GLB 资产陈列 + 自动环绕取景。
+ * 资产管线：Promise.allSettled 并发加载，单点失败降级不阻塞；
+ * 布局：包围盒归一缩放 → 底部对齐 → 等间距排开；
+ * 取景：整体包围盒 + FOV 反算视距；
+ * 漫游：球坐标驱动（水平公转 + 俯仰/视距正弦振荡），
+ * 用户操作时暂停并以拖后位姿为新基准，自动与人工无冲突 */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -85,7 +97,7 @@ function init() {
 function loadOne(item) {
   return new Promise((resolve) => {
     new GLTFLoader().load(
-      `/tourbox/${item.file}`,
+      `${import.meta.env.BASE_URL}tourbox/${item.file}`,
       (gltf) => {
         if (disposed) return resolve(null);
         const model = gltf.scene;
@@ -145,17 +157,83 @@ function arrange(boxes) {
   const center = all.getCenter(new THREE.Vector3());
   const dist =
     (Math.max(size.x, size.y) / 2 / Math.tan((Math.PI / 180) * 22.5)) * 1.25;
-  // 真正定机位 的一步。
+  // 真正定机位的一步：抬高 35% 高度俯视，dist 决定框住全部的视距
   camera.position.set(center.x, center.y + size.y * 0.35, center.z + dist);
   controls.target.copy(center);
   controls.update();
 }
 
 /* ===================== 渲染循环 ===================== */
+// 漫游式公转：水平角 + 俯仰角都随正弦缓摆（非固定圆轨道），视距也周期呼吸，
+// 模拟「随便换个角度看看」的观感；速度慢，随机相位让每次进页面轨迹不同。
+// 用户拖拽/缩放实时改变球坐标，漫游在新球坐标上叠加继续，互不冲突。
+const ORBIT_SPEED = Math.PI / 24; // 水平角速度（rad/s）：7.5°/s，48 秒一圈
+const PHI_AMP = 0.75; // 俯仰振荡幅值（rad ≈ 43°）：基准角 ±43°，保证周期性接近正上方俯视
+const RHO_AMP = 1.2; // 视距振荡幅值（世界单位）：靠近看细节再拉远看全景
+const PHI_MIN = 0.1; // 俯仰下限（rad ≈ 6°，接近地面平视）
+const PHI_MAX = 1.45; // 俯仰上限（rad ≈ 83°，接近正上方俯视）
+let autoOrbit = true;
+// 漫游基准（arrange 取景后记录；用户拖拽后以新位姿为基准重设）
+const orbitBase = { phi: 0.35, rho: 8 };
+// 随机相位：每次进页面轨迹不同
+const PHASE = {
+  phi: Math.random() * Math.PI * 2,
+  rho: Math.random() * Math.PI * 2,
+};
+// 用户拖拽期间暂停漫游（拖拽与公转抢相机的体验很差），松手 2s 后恢复；
+// 恢复时以用户拖完的位姿为新的振荡基准
+let userDragging = false;
+let resumeAt = 0;
+let rebaseNeeded = false;
 function startLoop() {
+  controls.addEventListener('start', () => {
+    userDragging = true;
+  });
+  controls.addEventListener('end', () => {
+    userDragging = false;
+    resumeAt = performance.now() + 2000;
+    rebaseNeeded = true;
+  });
+  let lastT = performance.now();
+  let elapsed = 0;
   function loop() {
     rafId = requestAnimationFrame(loop);
     if (disposed) return;
+    const now = performance.now();
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+    elapsed += dt;
+
+    if (autoOrbit && !userDragging && now >= resumeAt) {
+      const offset = camera.position.clone().sub(controls.target);
+      const rho = offset.length();
+      if (rho > 0.001) {
+        // 恢复漫游瞬间：把用户拖完的角度/距离记为新基准
+        if (rebaseNeeded) {
+          rebaseNeeded = false;
+          orbitBase.phi = Math.asin(
+            THREE.MathUtils.clamp(offset.y / rho, -1, 1),
+          );
+          orbitBase.rho = rho;
+        }
+        // 绝对振荡：phi/rho 直接由「基准 + 正弦」给出（不再围绕当前位置积分）
+        const phi = THREE.MathUtils.clamp(
+          orbitBase.phi + PHI_AMP * Math.sin(elapsed * 0.21 + PHASE.phi),
+          PHI_MIN,
+          PHI_MAX,
+        );
+        const theta = Math.atan2(offset.x, offset.z) + ORBIT_SPEED * dt;
+        const nextRho = Math.max(
+          1.5,
+          orbitBase.rho + RHO_AMP * Math.sin(elapsed * 0.13 + PHASE.rho),
+        );
+        camera.position.set(
+          controls.target.x + nextRho * Math.sin(theta) * Math.cos(phi),
+          controls.target.y + nextRho * Math.sin(phi),
+          controls.target.z + nextRho * Math.cos(theta) * Math.cos(phi),
+        );
+      }
+    }
     controls.update();
     renderer.render(scene, camera);
   }

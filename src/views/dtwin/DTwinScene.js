@@ -93,7 +93,7 @@ export function createWorkshopScene(container, hooks = {}) {
   function loadDeviceGeometry() {
     return new Promise((resolve) => {
       new GLTFLoader().load(
-        '/models/device.glb',
+        `${import.meta.env.BASE_URL}models/device.glb`,
         (gltf) => {
           let found = null;
           gltf.scene.traverse((o) => {

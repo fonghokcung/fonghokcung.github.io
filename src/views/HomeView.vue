@@ -129,7 +129,10 @@ const BOUNDS = 800; // 鸟群活动空间（立方体边长），velocity 着色
 const BOUNDS_HALF = BOUNDS / 2;
 
 /* GLTF 模型：public/gltf 下二选一（与示例一样随机） */
-const gltfs = ['/gltf/Parrot.glb', '/gltf/Flamingo.glb'];
+const gltfs = [
+  `${import.meta.env.BASE_URL}gltf/Parrot.glb`,
+  `${import.meta.env.BASE_URL}gltf/Flamingo.glb`,
+];
 const colors = [0xccffff, 0xffdeff];
 const sizes = [0.2, 0.1];
 const selectModel = Math.floor(Math.random() * gltfs.length);
