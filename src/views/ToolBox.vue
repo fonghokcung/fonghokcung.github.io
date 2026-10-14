@@ -1,42 +1,49 @@
 <template>
   <ThreeLayout ref="layoutRef" @stage-resize="onResize">
     <template #default>
-      <h2 class="txt-title">ToolBox · GLB 资产陈列与自动环绕取景</h2>
+      <h2 class="txt-title">ToolBox · GLB 资产陈列与交互演示</h2>
       <p class="txt-sub">
-        批量加载策略：GLTFLoader + Promise.allSettled 并发拉取 4 个 GLB，
-        单模型失败降级为占位，页面永不阻塞；每个模型按包围盒最大维度
-        归一缩放，底部对齐后等间距排开，整体居中于原点。
+        批量加载：GLTFLoader + Promise.allSettled 并发拉取，单模型失败
+        降级为占位，页面永不阻塞；每个模型按包围盒最大维度归一缩放，
+        底部对齐后等间距排开，主角居中于世界原点。
       </p>
       <p class="txt-sub">
-        自动取景：聚合整体包围盒，由相机 FOV 反算视距与俯仰，
-        保证任意模型组合一次入画。漫游相机以球坐标驱动——水平角匀速
-        公转，俯仰与视距大幅正弦振荡（可达近正上方俯视），随机相位让
-        每次进页面轨迹不同。
+        交互演示：左键点选零件高亮并引出折线标注（标签端拉出动画）；
+        转盘/旋钮/滚轮是旋转对称件，选中后模拟人手操作自转——快转、
+        慢调、偶尔反向、时有停顿；右键将视线聚焦到零件所属模型。
       </p>
       <p class="txt-hint">
-        用户拖拽/缩放时暂停漫游，松手 2s
-        后以新位姿为基准恢复，自动动画与人工操作无冲突
+        用户拖拽/缩放时标注自动隐藏；相机漫游（autoOrbit）默认关闭，
+        可手动开关体验自动环绕取景
       </p>
     </template>
 
     <template #stage>
       <div v-if="loading" class="loading">模型加载中…</div>
-      <!-- 选中零件的名称标注：白线 + 标签（ref 拿舞台容器做屏幕投影） -->
+      <!-- 选中零件的名称标注：折线 + 标签（ref 拿舞台容器做屏幕投影） -->
       <div ref="labelLayerRef" class="label-layer">
         <svg v-show="label.visible" class="label-svg">
-          <line
-            :x1="label.fromX"
-            :y1="label.fromY"
-            :x2="label.toX"
-            :y2="label.toY"
-            stroke="#fff"
+          <!-- 二段折线：斜线到肘点 → 水平线到标签（颜色统一走 CSS：--color2）。
+               pathLength=1 归一化线长 + key 绑定选中序号：每次拾取重建元素，
+               重放 dashoffset -1→0 的引出动画（标签端 → 零件端） -->
+          <path
+            :key="labelSeq"
+            :d="`M ${label.fromX} ${label.fromY} L ${label.elbowX} ${label.elbowY} H ${label.endX}`"
+            pathLength="1"
             stroke-width="1.5"
+            fill="none"
           />
-          <circle :cx="label.fromX" :cy="label.fromY" r="3" fill="#fff" />
+          <circle
+            :key="`dot-${labelSeq}`"
+            :cx="label.fromX"
+            :cy="label.fromY"
+            r="3"
+          />
         </svg>
         <span
           v-show="label.visible"
           class="label-chip"
+          :class="{ 'label-left': label.alignLeft }"
           :style="{ left: label.chipX + 'px', top: label.chipY + 'px' }"
           >{{ label.text }}</span
         >
@@ -46,12 +53,13 @@
 </template>
 
 <script setup>
-/* ToolBox 演示页：GLB 资产陈列 + 自动环绕取景。
+/* ToolBox 演示页：GLB 资产陈列 + 零件交互演示。
  * 资产管线：Promise.allSettled 并发加载，单点失败降级不阻塞；
- * 布局：包围盒归一缩放 → 底部对齐 → 等间距排开；
- * 取景：整体包围盒 + FOV 反算视距；
- * 漫游：球坐标驱动（水平公转 + 俯仰/视距正弦振荡），
- * 用户操作时暂停并以拖后位姿为新基准，自动与人工无冲突 */
+ * 布局：包围盒归一缩放 → 底部对齐 → 等间距排开，主角居中于原点；
+ * 拾取：14 键位白名单，左键高亮 + 折线标注，右键对焦所属模型；
+ * 旋转演示：转盘/旋钮/滚轮绕世界自然轴自转（pivot Group + attach 实现），
+ *   角速度由「人手操作」状态机驱动（快转/慢转/细调/停顿/反拨）；
+ * 漫游：球坐标驱动相机环绕（autoOrbit 默认关闭），用户操作时让位 */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -62,22 +70,26 @@ import PART_NAME_MAP from '@/assets/tourbox.txt?raw'; // mesh名 → 官方零�
 const layoutRef = ref(null);
 const loading = ref(true);
 const labelLayerRef = ref(null);
-// 标注层响应式状态：白线两端点 + 标签位置/文字
+// 标注层响应式状态：折线三顶点 + 标签位置/文字/对齐方向
 const label = ref({
   visible: false,
   text: '',
   fromX: 0,
   fromY: 0,
-  toX: 0,
-  toY: 0,
+  elbowX: 0,
+  elbowY: 0,
+  endX: 0,
   chipX: 0,
   chipY: 0,
+  alignLeft: false,
 });
+// 选中序号：每完成一次新拾取自增，绑在 path/circle 的 key 上强制重建
+// SVG 元素，从而重放「引线从标签端拉向零件」的 dash 动画
+let labelSeq = 0;
 
 // public/tourbox 下的模型清单（中文文件名由 Vite 原样代理，无需编码处理）
 const MODELS = [
-  { file: 'tourbox_mesh.glb', label: 'mesh版' },
-  { file: '黑色.glb', label: '黑色' },
+  { file: 'tourbox_mesh.glb', label: 'mesh版' }, // 主角：零件未合并，可拾取
   { file: '白色.glb', label: '白色' },
   { file: '蓝色.glb', label: '蓝色' },
   { file: '黄色.glb', label: '黄色' },
@@ -89,12 +101,12 @@ let camera = null;
 let controls = null;
 let rafId = 0;
 let disposed = false;
-// 拾取调试：raycaster + 指针事件（对照零件名用，定稿后删除）
+// 零件拾取：raycaster + 指针事件（pickEnabled 在模型就位后开启）
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-let pickEnabled = false; // 模型加载完成后才启用
+let pickEnabled = false;
 
-// 解析零件对照表：'旋钮-wang...body67' → { meshName: '旋钮', partName: '旋钮' }
+// 解析零件对照表：'零件名-mesh名' → { mesh名: 零件名 }
 const PARTS = Object.fromEntries(
   PART_NAME_MAP.split('\n')
     .map((line) => line.trim())
@@ -111,33 +123,39 @@ function init() {
   const container = layoutRef.value?.stageRef;
   if (!container || disposed) return;
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    alpha: true, // 透明底：WebGL 画布透明，透出容器上的 CSS 渐变背景
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
 
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color('#0d1b2a');
+  scene = new THREE.Scene(); // 不设 background：透出容器 CSS 渐变棚纸
 
-  // 照明：半球环境光 + 主平行光 + 补光，白色模型不欠曝、黑色模型有轮廓
-  scene.add(new THREE.HemisphereLight(0xbfd4ff, 0x2a2f3a, 1.8));
+  // 照明：半球环境光 + 主平行光 + 冷补光 + 右后轮廓光（黑模型细节靠 rim light 撑起）
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 2.2));
   const sun = new THREE.DirectionalLight(0xfff2d6, 2.4);
   sun.position.set(3, 6, 4);
   scene.add(sun);
-  const fill = new THREE.DirectionalLight(0x88aaff, 0.8);
+  const fill = new THREE.DirectionalLight(0xbcd0ff, 0.9);
   fill.position.set(-4, 2, -3);
   scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xffffff, 1.6);
+  rim.position.set(-2, 5, -6); // 右后方高位，勾出模型顶部/侧缘亮边
+  scene.add(rim);
 
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
   // 加载期间 loading 提示已覆盖注意力，原点相机渲染空场景合法，无需预设机位
 
   controls = new OrbitControls(camera, renderer.domElement);
-  controls.enableDamping = true;
+  controls.enableDamping = false; // 关闭惯性：拾取标注是静态投影，惯性滑行会让引线漂离零件
   controls.target.set(0, 0.8, 0);
   renderer.domElement.addEventListener('contextmenu', (e) =>
     e.preventDefault(),
   );
 
-  const grid = new THREE.GridHelper(20, 20, 0x3a4a63, 0x243044);
+  // 地面网格：亮背景同步提亮（深灰网格线在浅底上是细腻的参考系）
+  const grid = new THREE.GridHelper(20, 20, 0x9aa5b1, 0xc8cfd8);
   scene.add(grid);
 
   loadModels();
@@ -156,12 +174,6 @@ function loadOne(item) {
       (gltf) => {
         if (disposed) return resolve(null);
         const model = gltf.scene;
-        // 只打印 tourbox_mesh 各 mesh 的名字（调试用，定稿后删除）
-        if (item.file === 'tourbox_mesh.glb') {
-          model.traverse((o) => {
-            if (o.isMesh) console.log(`mesh: ${o.name || '(未命名)'}`);
-          });
-        }
 
         // 统一缩放：按包围盒最高维度归一（模型大小不一也能并排等高）
         const box = new THREE.Box3().setFromObject(model);
@@ -186,7 +198,8 @@ async function loadModels() {
   const root = new THREE.Group();
   scene.add(root);
 
-  // allSettled：全失败也不抛异常，结果顺序与 MODELS 一一对应
+  // allSettled：全失败也不抛异常；fulfilled 里可能包着 resolve(null)（加载失败），
+  // 过滤后得到就位模型，顺序与 MODELS 一致
   const settled = await Promise.allSettled(MODELS.map(loadOne));
   if (disposed) return;
 
@@ -203,9 +216,122 @@ async function loadModels() {
   pickEnabled = true; // 模型就位，启用拾取
 }
 
-// 点选零件：打印 name + 完整对象 + 高亮成黄色（对照零件名用，定稿后删除）
-let pickedMesh = null; // 当前选中零件（左键：高亮）
+/* ===================== 拾取与选中 ===================== */
+let pickedMesh = null; // 当前选中零件（左键：高亮 + 标注）
 let focusModel = null; // 当前对焦的 glb 根（右键：设为 controls.target）
+
+/* ===================== 旋转演示 ===================== */
+// 转盘/旋钮/滚轮是旋转对称件，选中后绕自身自然轴自转（即真实产品
+// 的运动方式）：转盘/旋钮绕世界 Y，滚轮绕世界 X。
+// 实现要点：把 mesh attach 到「位于圆心、局部轴对齐世界」的 pivot
+// Group 下，转 pivot 即绕过圆心的世界轴转；手推矩阵公式在 gltf 隐藏
+// 父变换面前接连出错（漂移/绕错轴/飞出画面），attach 把空间换算全部
+// 交给引擎，无公式可错。圆心 = 顶面高度带顶点质心 XZ（转盘/旋钮，
+// 全局质心会被底座细节拉偏）或全局顶点质心（滚轮）。
+// 角速度由「人手操作」状态机驱动（见 SPIN_STATES）。
+const SPIN_PARTS = {
+  转盘: new THREE.Vector3(0, 1, 0),
+  旋钮: new THREE.Vector3(0, 1, 0),
+  滚轮: new THREE.Vector3(1, 0, 0),
+};
+let spin = null; // { mesh, pivot, origParent, axisWorld, angle, vel, targetVel, partLabel }
+const _spinQ = new THREE.Quaternion();
+
+// 「人手」参数：速度域 v（rad/s，正=正方向）与持续时长域 t（s）。
+// 档位按速度命名：v2 最快、v1 常速、v0 最慢。
+// exclude：该状态对此零件禁用（滚轮没有「快转/细调」的拨法）
+const SPIN_STATES = {
+  v2: { v: [4, 14], t: [0.1, 0.4], exclude: ['滚轮'] }, // 高速档：大力快转
+  v1: { v: [0.3, 0.8], t: [0.3, 0.8] }, // 常速档：常速转动
+  v0: { v: [0.6, 1.6], t: [0.2, 0.6], exclude: ['滚轮'] }, // 低速档：小幅细调
+  back: { v: [-4, -8], t: [0.15, 0.5] }, // 偶尔反向拨一下
+  rest: { v: [0, 0], t: [0.4, 1.6] }, // 手离开，停顿
+};
+
+// 按真实操作的概率分布随机切一个新状态：正转占大头（v2+v1+v0
+// ≈78%），停顿/反拨是调味料；命中的状态被禁用时顺延到下一档
+function nextSpinState(s, partLabel) {
+  const r = Math.random();
+  let name;
+  if (r < 0.4 && !SPIN_STATES.v2.exclude?.includes(partLabel)) name = 'v2';
+  else if (r < 0.65) name = 'v1';
+  else if (r < 0.78 && !SPIN_STATES.v0.exclude?.includes(partLabel))
+    name = 'v0';
+  else if (r < 0.9) name = 'rest';
+  else name = 'back';
+  const cfg = SPIN_STATES[name];
+  s.state = name;
+  s.targetVel = cfg.v[0] + Math.random() * (cfg.v[1] - cfg.v[0]);
+  s.rest = cfg.t[0] + Math.random() * (cfg.t[1] - cfg.t[0]);
+}
+
+// 开始自转：建 pivot Group（位于圆心、局部轴对齐世界轴）并把 mesh
+// attach 进去，渲染循环只转 pivot 即可
+function startSpin(mesh, axisWorld, partLabel) {
+  // 世界系圆心 XZ = 顶点质心：
+  //   竖直轴件（转盘/旋钮）只取「顶面高度带」（最高 10%）内的顶点——
+  //   用户视觉参照是顶面，全局质心会被底座细节拉偏导致旋转发晃；
+  //   顶带内顶点全落在圆盘/顶环上，均值即真圆心
+  //   滚轮（横轴）取全局质心（已验证稳定）
+  const box = new THREE.Box3().setFromObject(mesh);
+  const pos = mesh.geometry.attributes.position;
+  const vtx = new THREE.Vector3();
+  let cx = 0;
+  let cz = 0;
+  let n = 0;
+  if (axisWorld.y !== 0) {
+    const bandY = box.max.y - (box.max.y - box.min.y) * 0.1;
+    for (let i = 0; i < pos.count; i++) {
+      vtx.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      if (vtx.y >= bandY) {
+        cx += vtx.x;
+        cz += vtx.z;
+        n++;
+      }
+    }
+  } else {
+    for (let i = 0; i < pos.count; i++) {
+      vtx.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+      cx += vtx.x;
+      cz += vtx.z;
+    }
+    n = pos.count;
+  }
+  const centerWorld = box.getCenter(new THREE.Vector3());
+  centerWorld.x = cx / n;
+  centerWorld.z = cz / n;
+
+  // pivot：位置 = 圆心（换算进父空间）；姿态 = 父世界旋转的逆
+  // ⇒ pivot 局部轴与世界轴重合，绕其局部 Y/X 转即绕世界轴转
+  const origParent = mesh.parent;
+  const pivot = new THREE.Group();
+  origParent.add(pivot);
+  pivot.position.copy(origParent.worldToLocal(centerWorld.clone()));
+  pivot.quaternion.copy(
+    origParent.getWorldQuaternion(new THREE.Quaternion()).invert(),
+  );
+  pivot.attach(mesh); // 世界位姿原封不动地换到 pivot 下，原地待转
+
+  spin = {
+    mesh,
+    pivot,
+    origParent,
+    axisWorld: axisWorld.clone(), // 世界系转轴（pivot 局部轴与世界对齐，可直接用）
+    angle: 0,
+    vel: 0,
+    targetVel: 0,
+    partLabel, // 零件名：状态机按它过滤 exclude
+  };
+  nextSpinState(spin, partLabel);
+}
+
+// 停止自转：attach 回原父（世界位姿不变），移除 pivot
+function stopSpin() {
+  if (!spin) return;
+  spin.origParent.attach(spin.mesh);
+  spin.pivot.removeFromParent();
+  spin = null;
+}
 // 点击 vs 拖拽判定：按下记位置，抬起时位移 ≤ 4px 且时长 < 400ms 才算点击
 let downInfo = null; // { x, y, button, time }
 function onPointerDown(e) {
@@ -247,6 +373,7 @@ function pickAt(e, btn) {
       pickedMesh.material = pickedMesh.userData._origMat;
       delete pickedMesh.userData._origMat;
     }
+    stopSpin();
     pickedMesh = null;
     label.value.visible = false;
     return;
@@ -260,64 +387,144 @@ function pickAt(e, btn) {
     const box = new THREE.Box3().setFromObject(root);
     box.getCenter(controls.target);
     controls.update();
-    console.log(
-      `focus target → ${focusModel.name || '(glb根)'}`,
-      controls.target,
-    );
     return;
   }
 
-  // 左键：高亮 + 打印（材质是共享的，需克隆后整卡换色）
+  // 左键：高亮选中零件（材质是共享的，需克隆后整卡换色）
   if (pickedMesh && pickedMesh !== mesh) {
     pickedMesh.material = pickedMesh.userData._origMat;
     delete pickedMesh.userData._origMat;
   }
+  if (spin?.mesh !== mesh) stopSpin(); // 换选：先还原上一个旋转件
   if (!mesh.userData._origMat) {
     mesh.userData._origMat = mesh.material; // 备份原材质
     mesh.material = mesh.material.clone(); // 克隆后改色，不污染同材质零件
-    mesh.material.color.set(0xffd509);
+    mesh.material.color.set('#fbd509'); // 主题黄（base.css --color-primary）
     if (mesh.material.emissive) {
       mesh.material.emissive.set(0x664400);
     }
   }
   pickedMesh = mesh;
-  console.log(`picked: ${PARTS[hitName]} (${hitName})`);
-  updateLabel(mesh, PARTS[hitName]);
+  const label_ = PARTS[hitName];
+  // partLabel 必传：旋转状态机靠它识别零件、执行 exclude 过滤
+  if (SPIN_PARTS[label_]) startSpin(mesh, SPIN_PARTS[label_], label_);
+  updateLabel(mesh, label_);
 }
 
-// 把选中零件的世界坐标投影到屏幕：起点=零件中心，终点=上方 1/3 随机位置
+/* ===================== 标注：折线 + 文案 ===================== */
+// 把选中零件的世界坐标投影到屏幕：线头钉在零件表面，标签随机落位
 const _v = new THREE.Vector3();
 function updateLabel(mesh, text) {
   const layer = labelLayerRef.value;
   if (!layer) return;
   const lw = layer.clientWidth;
   const lh = layer.clientHeight;
-  // 零件包围盒中心 → 世界坐标 → 屏幕坐标
+  // 线头贴零件表面：默认从正上方(down 射线)打顶面；侧键是竖直面，改从侧面打。
+  // 短键等 AABB 异常件：包围盒中心可能偏出实体（建模游离点撑大 AABB），
+  // 从中心垂直下射会命中侧壁 → 起射点改用「顶点质心」的 XZ，
+  // 质心不受游离点影响，永远落在实体正上方。
   const box = new THREE.Box3().setFromObject(mesh);
   box.getCenter(_v);
-  _v.project(camera);
-  const fromX = ((_v.x + 1) / 2) * lw;
-  const fromY = ((1 - _v.y) / 2) * lh;
-  // 上方 1/3 区域随机落点（留 16px 边距）
-  const toX = 16 + Math.random() * Math.max(1, lw - 32);
-  const toY = 16 + Math.random() * Math.max(1, lh / 3 - 32);
+  const center = _v.clone();
+  const isSideKey = /_body78$/.test(mesh.name); // 侧键（对照表：body78）
+
+  // 顶点质心（世界空间）：所有顶点坐标的均值
+  const pos = mesh.geometry.attributes.position;
+  const vtx = new THREE.Vector3();
+  let cx = 0;
+  let cz = 0;
+  for (let i = 0; i < pos.count; i++) {
+    vtx.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    cx += vtx.x;
+    cz += vtx.z;
+  }
+  const cxAvg = cx / pos.count;
+  const czAvg = cz / pos.count;
+
+  // 起射点：质心正上方（AABB 中心上方做候选）；取两者都命中的为准
+  const origins = isSideKey
+    ? [
+        // 侧键：从 +X 外侧水平射向质心（TourBox 侧键朝右）
+        new THREE.Vector3(box.max.x + 0.5, center.y, czAvg),
+        new THREE.Vector3(box.max.x + 0.5, center.y, center.z),
+      ]
+    : [
+        new THREE.Vector3(cxAvg, box.max.y + 0.5, czAvg),
+        new THREE.Vector3(center.x, box.max.y + 0.5, center.z),
+      ];
+
+  // 依次尝试起射点，第一个有命中的即用其结果
+  const ray = new THREE.Raycaster();
+  let hit = null;
+  for (const origin of origins) {
+    ray.set(
+      origin,
+      isSideKey ? new THREE.Vector3(-1, 0, 0) : new THREE.Vector3(0, -1, 0),
+    );
+    hit = ray.intersectObject(mesh, false)[0] || null;
+    if (hit) break;
+  }
+  const anchor = hit ? hit.point : center; // 兜底：全部落空就用中心
+  anchor.project(camera);
+  const fromX = ((anchor.x + 1) / 2) * lw;
+  const fromY = ((1 - anchor.y) / 2) * lh;
+
+  // 折线随机参数：以零件名为种子——同一零件每次形状一致（resize 重投影不跳），
+  // 不同零件形状各异（保留随机感）。resize 时 fromX/toX 都随画布等比缩放，
+  // 折线形态稳定，只有绝对坐标随尺寸平滑变化
+  const rnd = seededRand(mesh.name);
+  const toX = 16 + rnd() * Math.max(1, lw - 32);
+  const toY = 80 + rnd() * 100; // 标签垂直位置限定在 [80px, 180px]
+  // 二段折线：零件 → 斜线到肘点 → 水平段 → 标签
+  const elbowY = toY;
+  // 文案在零件哪侧：随机点在零件左半屏则标签往左拉，反之往右
+  const dir = toX < fromX ? -1 : 1;
+  // 肘点 X：与零件留出随机水平距离，产生长短不一的斜线段
+  const elbowX = THREE.MathUtils.clamp(
+    fromX + dir * (40 + rnd() * 80),
+    8,
+    lw - 8,
+  );
+  // 水平段长度随机
+  const hLen = 32 + rnd() * 64;
+  const endX = THREE.MathUtils.clamp(elbowX + dir * hLen, 8, lw - 8);
+  labelSeq += 1; // 新拾取 → 新 key → SVG 元素重建 → dash 动画重放
   label.value = {
     visible: true,
     text,
     fromX,
     fromY,
-    toX,
-    toY,
-    // 标签贴在线的终点上方
-    chipX: toX,
-    chipY: toY - 28,
+    elbowX,
+    elbowY,
+    endX,
+    // 标签锚点 = 水平段末端；向左展开时锚点为文字右缘（style 里 translateX(-100%)）
+    chipX: endX,
+    chipY: elbowY,
+    alignLeft: dir < 0, // true: 标签整体在锚点左侧
+  };
+}
+
+// 种子随机：FNV-1a 哈希 + mulberry32——同零件名恒定产出同一序列
+//（引线形态稳定，resize 重投影不跳），不同零件互不相同
+function seededRand(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return () => {
+    h += 0x6d2b79f5;
+    let t = h;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
 
 // 水平等间距排开：mesh版居中于原点并作为取景目标，其余模型在其右侧排开
 function arrange(boxes) {
   if (!boxes.length) return; // 全部加载失败：维持默认相机位，避免除零得 0 视距
-  const GAP = 0.6;
+  const GAP = 0.4;
   const main = boxes.find((b) => b.label === 'mesh版') || boxes[0]; // 主角模型
 
   // 主角居中：X/Z 归零（主角中心 = 世界原点），底部已对齐 y=0
@@ -332,7 +539,7 @@ function arrange(boxes) {
     if (b === main) continue;
     const bb = new THREE.Box3().setFromObject(b.model);
     const w = bb.getSize(new THREE.Vector3()).x;
-    b.model.position.x += cursor - bb.min.x;
+    b.model.position.x += cursor - bb.min.x + 0.8;
     cursor += w + GAP;
   }
 
@@ -348,31 +555,30 @@ function arrange(boxes) {
 }
 
 /* ===================== 渲染循环 ===================== */
-// 漫游式公转：水平角 + 俯仰角都随正弦缓摆（非固定圆轨道），视距也周期呼吸，
-// 模拟「随便换个角度看看」的观感；速度慢，随机相位让每次进页面轨迹不同。
-// 用户拖拽/缩放实时改变球坐标，漫游在新球坐标上叠加继续，互不冲突。
+// 相机漫游（autoOrbit 开关，默认关闭）：水平角匀速公转 + 俯仰/视距正弦
+// 振荡，随机相位让每次轨迹不同；用户拖拽期间暂停，松手 2s 以新位姿
+// 为基准恢复。同循环内驱动旋转件自转（见 SPIN_STATES 状态机）。
 const ORBIT_SPEED = Math.PI / 24; // 水平角速度（rad/s）：7.5°/s，48 秒一圈
 const PHI_AMP = 0.75; // 俯仰振荡幅值（rad ≈ 43°）：基准角 ±43°，保证周期性接近正上方俯视
 const RHO_AMP = 1.2; // 视距振荡幅值（世界单位）：靠近看细节再拉远看全景
 const PHI_MIN = 0.1; // 俯仰下限（rad ≈ 6°，接近地面平视）
 const PHI_MAX = 1.45; // 俯仰上限（rad ≈ 83°，接近正上方俯视）
-// 漫游式公转开关
-let autoOrbit = false;
-// 漫游基准（arrange 取景后记录；用户拖拽后以新位姿为基准重设）
-const orbitBase = { phi: 0.35, rho: 8 };
-// 随机相位：每次进页面轨迹不同
+let autoOrbit = false; // 漫游开关
+const orbitBase = { phi: 0.35, rho: 8 }; // 漫游基准（用户拖拽后以其位姿重设）
 const PHASE = {
+  // 随机相位：每次进页面轨迹不同
   phi: Math.random() * Math.PI * 2,
   rho: Math.random() * Math.PI * 2,
 };
-// 用户拖拽期间暂停漫游（拖拽与公转抢相机的体验很差），松手 2s 后恢复；
-// 恢复时以用户拖完的位姿为新的振荡基准
 let userDragging = false;
-let resumeAt = 0;
+let resumeAt = 0; // 松手后 2s 恢复漫游
 let rebaseNeeded = false;
 function startLoop() {
   controls.addEventListener('start', () => {
     userDragging = true;
+    // 用户开始操作相机（缩放/平移/旋转）：标注是选中瞬间的静态快照，
+    // 相机动过就不再对应零件位置，立即隐藏
+    label.value.visible = false;
   });
   controls.addEventListener('end', () => {
     userDragging = false;
@@ -419,6 +625,22 @@ function startLoop() {
         );
       }
     }
+    // 旋转件自转：pivot 已位于圆心，每帧重摆其姿态 = Qp⁻¹ · R(angle)
+    //（Qp = 父世界旋转）。不能用 rotateOnWorldAxis——它直接前乘、
+    // 假设父级无旋转，gltf 父链的旋转会把世界轴共轭成斜轴。
+    // 显式组合后 pivot 世界姿态恰为 R：纯绕世界轴旋转，圆心不动。
+    if (spin) {
+      spin.rest -= dt;
+      if (spin.rest <= 0) nextSpinState(spin, spin.partLabel);
+      // 角速度缓动：vel 朝状态目标值过渡（人手加减速），状态到期随机切换
+      spin.vel += (spin.targetVel - spin.vel) * Math.min(1, dt * 8);
+      spin.angle += spin.vel * dt;
+      spin.pivot.quaternion.copy(
+        spin.origParent.getWorldQuaternion(_spinQ).invert(),
+      );
+      _spinQ.setFromAxisAngle(spin.axisWorld, spin.angle);
+      spin.pivot.quaternion.multiply(_spinQ);
+    }
     controls.update();
     renderer.render(scene, camera);
   }
@@ -435,6 +657,8 @@ function onResize() {
   renderer.setSize(rect.width, rect.height);
   camera.aspect = rect.width / rect.height;
   camera.updateProjectionMatrix();
+  // 标注坐标是画布尺寸的函数：resize 后按新尺寸重投影，引线保持钉在零件上
+  if (pickedMesh) updateLabel(pickedMesh, label.value.text);
 }
 
 function dispose() {
@@ -446,6 +670,7 @@ function dispose() {
     delete pickedMesh.userData._origMat;
   }
   pickedMesh = null;
+  stopSpin();
   cancelAnimationFrame(rafId);
   renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
   renderer?.domElement.removeEventListener('pointerup', onPointerUp);
@@ -497,16 +722,58 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
 }
+/* 引线与文案统一用项目辅色 --color2（亮蓝）：SVG 颜色属性也可直接引用
+   CSS 变量，色值单点维护 */
+.label-svg path {
+  stroke: var(--color2);
+  /* 引出动画：pathLength=1 已把线长归一化为 1，dasharray 1 即「一段完整线」；
+     offset 从 -1 过渡到 0，虚线窗口从路径末端滑向起点——视觉上引线
+     从标签端逐渐拉出、指向零件。resize 重投影只改 d 不重建元素，
+     动画只在拾取瞬间（key 变化）重放 */
+  stroke-dasharray: 1;
+  animation: lead-draw 0.2s ease-out forwards;
+}
+@keyframes lead-draw {
+  from {
+    stroke-dashoffset: -1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.label-svg circle {
+  fill: var(--color2);
+  /* 线头圆点随引线动画延迟浮现（0.2s 引线画完时出现） */
+  animation: dot-pop 0.1s ease-out 0.16s backwards;
+}
+@keyframes dot-pop {
+  from {
+    opacity: 0;
+    r: 0;
+  }
+  to {
+    opacity: 1;
+    r: 3;
+  }
+}
 .label-chip {
   position: absolute;
-  padding: 4px 12px;
-  border-radius: 6px;
-  background: rgba(13, 27, 42, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  color: #fff;
-  font-size: 13px;
+  padding: 4px 10px;
+  color: var(--color2); /* 无背景：纯文案直接用辅色，浅底上清晰 */
+  font-size: 15px;
+  font-weight: 600;
   line-height: 1.5;
   white-space: nowrap;
-  transform: translateX(-50%); /* 以线的终点为标签水平中心 */
+  transform: translateY(-50%); /* 以水平线末端为标签垂直中心 */
+}
+.label-chip.label-left {
+  transform: translate(-100%, -50%); /* 左展开：文字整体落在锚点左侧 */
+}
+
+/* 屏幕空间摄影棚渐变：直接铺在 ThreeLayout 的 .stage 容器上（scoped
+   够不着子组件内部节点，用 :deep() 穿透）。渐变由合成器渲染，
+   零运行时开销，且永不随相机旋转/移动变化 */
+:deep(.stage) {
+  background: linear-gradient(to bottom, #f2f4f7 0%, #dfe3e8 55%, #c3c9d2 100%);
 }
 </style>
