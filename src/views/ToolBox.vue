@@ -1,5 +1,6 @@
 <template>
   <ThreeLayout ref="layoutRef" @stage-resize="onResize">
+    <!-- https://www.tourboxtech.com/jp/tourbox-elite-natural-series/ -->
     <template #default>
       <h2 class="txt-title">ToolBox · GLB 资产陈列与交互演示</h2>
       <p class="txt-sub">
@@ -158,6 +159,10 @@ function init() {
   const grid = new THREE.GridHelper(20, 20, 0x9aa5b1, 0xc8cfd8);
   scene.add(grid);
 
+  // 世界坐标轴指示器：红=X 绿=Y 蓝=Z（位于原点，验证方向用）
+  const SHOW_AXES = false; // 调试开关：是否显示坐标轴
+  if (SHOW_AXES) scene.add(new THREE.AxesHelper(5));
+
   loadModels();
   onResize();
   startLoop();
@@ -218,7 +223,11 @@ async function loadModels() {
 
 /* ===================== 拾取与选中 ===================== */
 let pickedMesh = null; // 当前选中零件（左键：高亮 + 标注）
-let focusModel = null; // 当前对焦的 glb 根（右键：设为 controls.target）
+
+/* ===================== 相机飞近 ===================== */
+// 点击选中零件时，若相机离所选模型太远则平滑飞近：动画期间每帧对
+// controls.target 和相机位置做指数插值，贴近视距由模型包围盒反算。
+// 已在合适距离内（< FLY_FAR）则不动作，尊重用户当前取景。
 
 /* ===================== 旋转演示 ===================== */
 // 转盘/旋钮/滚轮是旋转对称件，选中后绕自身自然轴自转（即真实产品
@@ -332,6 +341,53 @@ function stopSpin() {
   spin.pivot.removeFromParent();
   spin = null;
 }
+
+/* ===================== 按压动画（键位零件） ===================== */
+// 键位零件被选中的瞬间：沿世界 -Z 压入 PRESS_DEPTH 再弹回复位，
+// 模拟按压。与旋转演示同哲学——mesh attach 到空 pivot，动画只动
+// pivot.position，空间换算全部交给引擎；结束后 attach 回原父归位。
+const PRESS_PARTS = {
+  侧键: new THREE.Vector3(1, 0, 0), // 侧键在侧面，沿 +X 水平压入
+  长键: new THREE.Vector3(0, 0, -1),
+  短键: new THREE.Vector3(0, 0, -1),
+  横键: new THREE.Vector3(0, 0, -1),
+  '十字键（上）': new THREE.Vector3(0, 0, -1),
+  '十字键（下）': new THREE.Vector3(0, 0, -1),
+  '十字键（左）': new THREE.Vector3(0, 0, -1),
+  '十字键（右）': new THREE.Vector3(0, 0, -1),
+  Tour键: new THREE.Vector3(0, 0, -1),
+  C1: new THREE.Vector3(0, 0, -1),
+  C2: new THREE.Vector3(0, 0, -1),
+};
+// .0002,.1
+const PRESS_DEPTH = 0.0002; // 压入深度（世界单位）
+const PRESS_T = 0.1; // 单程时长（s），全程压入+弹回 = PRESS_T × 2
+let press = null; // { mesh, pivot, origParent, dir, t }
+// 开始按压：pivot 挂到 mesh 原父节点下，局部轴对齐世界轴（同 startSpin），
+// 之后 pivot.position 可直接用世界方向表达；attach 保证 mesh 原地待动
+function startPress(mesh, dirWorld) {
+  stopPress();
+  const origParent = mesh.parent; // 动画结束后 mesh 要 attach 回去的家
+  const pivot = new THREE.Group();
+  origParent.add(pivot);
+  pivot.quaternion.copy(
+    origParent.getWorldQuaternion(new THREE.Quaternion()).invert(),
+  );
+  pivot.attach(mesh);
+  press = { mesh, pivot, origParent, dir: dirWorld.clone(), t: 0 };
+}
+
+// 停止按压：先把 pivot 归零再 attach 回原父。attach 只保证「世界位姿
+// 不变」——若 pivot 停在动画最后一帧的残移量上（帧粒度，可达数像素），
+// 直接 attach 会把这个偏移永久带走（「没复位」 bug 的根因）
+function stopPress() {
+  if (!press) return;
+  press.pivot.position.set(0, 0, 0); // 归零后 attach，mesh 世界位姿 = 原始位姿
+  press.origParent.attach(press.mesh);
+  press.pivot.removeFromParent();
+  press = null;
+}
+
 // 点击 vs 拖拽判定：按下记位置，抬起时位移 ≤ 4px 且时长 < 400ms 才算点击
 let downInfo = null; // { x, y, button, time }
 function onPointerDown(e) {
@@ -355,6 +411,59 @@ function onPointerUp(e) {
   pickAt(e, btn);
 }
 
+// 找零件所属 glb 的根节点（加载时打有 userData.gltfRoot 标记）
+function gltfRootOf(mesh) {
+  let root = mesh;
+  while (root.parent && !root.userData.gltfRoot) root = root.parent;
+  return root;
+}
+
+/* ---- 相机飞近：远观时点击零件，相机平滑飞到该模型跟前 ---- */
+const FLY_FAR = 5; // 相机到 controls.target 距离超过此值视为「太远」
+const FLY_SPEED = 9; // 指数插值速率（1/s）：越大飞得越快、停下越急
+let flyGoal = null; // { target: Vector3, pos: Vector3 } 飞行终点，到达即清空
+let pendingReveal = null; // 飞行期间挂起的呈现回调（旋转/按压/标注），落地后执行
+// 计算并记录飞行终点：target = 所选模型包围盒中心，
+// 相机终点 = 沿当前视线方向退到「恰好框住模型」的视距处。
+// 返回是否真的起飞（太近忽略 = false）
+function flyToPart(mesh) {
+  // 太近则忽略：相机已在模型跟前（target 距离 < FLY_FAR）时不动，
+  // 避免每次点击都抢走用户的取景
+  if (camera.position.distanceTo(controls.target) < FLY_FAR) return false;
+  const root = gltfRootOf(mesh);
+  const box = new THREE.Box3().setFromObject(root);
+  if (box.isEmpty()) return false;
+  const size = box.getSize(new THREE.Vector3());
+  const target = box.getCenter(new THREE.Vector3());
+  // 视距 = 包围球半径 / sin(半FOV)，与 arrange 的取景逻辑同源（系数 1.15 留边）
+  const radius = size.length() / 2;
+  const dist = (radius / Math.sin((Math.PI / 180) * 22.5)) * 1.15;
+  const pos = camera.position.clone().sub(target).setLength(dist).add(target);
+  flyGoal = { target, pos };
+  return true;
+}
+// 每帧插值：位置与 target 同步趋近终点（指数缓动，先快后慢），
+// 距离足够近时吸附终点并结束。用户拖拽会打断飞行（flyGoal 置空于 start 事件）
+function stepFly(dt) {
+  if (!flyGoal) return;
+  const k = 1 - Math.exp(-FLY_SPEED * dt); // 帧率无关的指数插值系数
+  camera.position.lerp(flyGoal.pos, k);
+  controls.target.lerp(flyGoal.target, k);
+  if (camera.position.distanceTo(flyGoal.pos) < 0.01) {
+    camera.position.copy(flyGoal.pos);
+    controls.target.copy(flyGoal.target);
+    flyGoal = null;
+    flushPendingReveal(); // 落地：此刻才执行旋转/按压/标注呈现
+  }
+}
+// 执行挂起的呈现回调（若有）
+function flushPendingReveal() {
+  if (!pendingReveal) return;
+  const fn = pendingReveal;
+  pendingReveal = null;
+  fn();
+}
+
 // 拾取本体：btn 0=左键（高亮零件） 2=右键（对焦模型）
 function pickAt(e, btn) {
   const rect = renderer.domElement.getBoundingClientRect();
@@ -374,17 +483,15 @@ function pickAt(e, btn) {
       delete pickedMesh.userData._origMat;
     }
     stopSpin();
+    stopPress();
     pickedMesh = null;
     label.value.visible = false;
     return;
   }
 
-  // 右键：找到零件所属 glb 的根节点，把其包围盒中心设为 controls.target
+  // 右键：把零件所属 glb 的包围盒中心设为 controls.target
   if (btn === 2) {
-    let root = mesh;
-    while (root.parent && !root.userData.gltfRoot) root = root.parent;
-    focusModel = root;
-    const box = new THREE.Box3().setFromObject(root);
+    const box = new THREE.Box3().setFromObject(gltfRootOf(mesh));
     box.getCenter(controls.target);
     controls.update();
     return;
@@ -396,6 +503,7 @@ function pickAt(e, btn) {
     delete pickedMesh.userData._origMat;
   }
   if (spin?.mesh !== mesh) stopSpin(); // 换选：先还原上一个旋转件
+  stopPress(); // 按键动画是一次性的，任何新拾取都先复位
   if (!mesh.userData._origMat) {
     mesh.userData._origMat = mesh.material; // 备份原材质
     mesh.material = mesh.material.clone(); // 克隆后改色，不污染同材质零件
@@ -406,9 +514,18 @@ function pickAt(e, btn) {
   }
   pickedMesh = mesh;
   const label_ = PARTS[hitName];
-  // partLabel 必传：旋转状态机靠它识别零件、执行 exclude 过滤
-  if (SPIN_PARTS[label_]) startSpin(mesh, SPIN_PARTS[label_], label_);
-  updateLabel(mesh, label_);
+  // 旋转/按压/标注的呈现：若相机需要飞近，挂起到落地后执行——
+  // 先飞到位，再看到零件动起来、引线拉出，叙事顺序自然
+  const reveal = () => {
+    if (SPIN_PARTS[label_]) startSpin(mesh, SPIN_PARTS[label_], label_);
+    if (PRESS_PARTS[label_]) startPress(mesh, PRESS_PARTS[label_]); // 键位：按压
+    updateLabel(mesh, label_);
+  };
+  if (flyToPart(mesh)) {
+    pendingReveal = reveal;
+  } else {
+    reveal();
+  }
 }
 
 /* ===================== 标注：折线 + 文案 ===================== */
@@ -576,6 +693,7 @@ let rebaseNeeded = false;
 function startLoop() {
   controls.addEventListener('start', () => {
     userDragging = true;
+    flyGoal = null; // 用户接管相机：飞行立即作废
     // 用户开始操作相机（缩放/平移/旋转）：标注是选中瞬间的静态快照，
     // 相机动过就不再对应零件位置，立即隐藏
     label.value.visible = false;
@@ -594,6 +712,7 @@ function startLoop() {
     const dt = Math.min((now - lastT) / 1000, 0.05);
     lastT = now;
     elapsed += dt;
+    stepFly(dt); // 相机飞近动画（若在飞）
 
     if (autoOrbit && !userDragging && now >= resumeAt) {
       const offset = camera.position.clone().sub(controls.target);
@@ -641,6 +760,27 @@ function startLoop() {
       _spinQ.setFromAxisAngle(spin.axisWorld, spin.angle);
       spin.pivot.quaternion.multiply(_spinQ);
     }
+    // 键位按压：前半程 easeOut 压入（快进慢停，像手指发力），后半程
+    // easeIn 弹回（慢起快回，像回弹弹簧）。t 走完自动 stopPress 归位
+    if (press) {
+      press.t += dt;
+      const half = PRESS_T;
+      let offset;
+      if (press.t < half) {
+        const k = press.t / half;
+        offset = PRESS_DEPTH * (1 - (1 - k) * (1 - k)); // easeOutQuad
+      } else if (press.t < half * 2) {
+        const k = (press.t - half) / half;
+        offset = PRESS_DEPTH * (1 - k * k); // easeInQuad 回弹
+      } else {
+        stopPress();
+        offset = 0;
+      }
+      if (press) {
+        // pivot 局部轴已对齐世界轴，position = 世界方向 × 偏移量
+        press.pivot.position.copy(press.dir).multiplyScalar(offset);
+      }
+    }
     controls.update();
     renderer.render(scene, camera);
   }
@@ -671,6 +811,7 @@ function dispose() {
   }
   pickedMesh = null;
   stopSpin();
+  stopPress();
   cancelAnimationFrame(rafId);
   renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
   renderer?.domElement.removeEventListener('pointerup', onPointerUp);
