@@ -6,7 +6,7 @@
 ## 一、部署链路总览
 
 ```
-git push origin master
+git push origin main
   └→ GitHub Actions 触发 .github/workflows/deploy.yml
        └→ npm ci → npm run build
             └→ dist/ 上传为 Pages 工件
@@ -18,7 +18,7 @@ git push origin master
 
 ### 1. 工作流文件 `.github/workflows/deploy.yml`
 
-- 触发条件：push 到 `master`（或 Actions 页手动触发 `workflow_dispatch`）
+- 触发条件：push 到 `main`（或 Actions 页手动触发 `workflow_dispatch`）
 - 流程：checkout → Node 20（npm 缓存）→ `npm ci` → `npm run build` →
   `dist` 上传为 Pages 工件 → `deploy-pages` 发布
 - 并发控制：同一时间只跑一个部署，排队不取消（`concurrency.group: pages`）
@@ -55,14 +55,11 @@ base 为 `/` 时行为与硬编码 `/tourbox/xxx` 完全一致；
 
 ```bash
 git remote add origin https://github.com/<你的用户名>/<你的用户名>.github.io.git
-git push -u origin master
+git push -u origin main
 ```
 
-**分支注意**：workflow 监听的是 `master`。若仓库默认分支是 `main`，
-二选一：
-
-- 在 GitHub 仓库 Settings → Branches 把默认分支改为 `master`
-- 或把 `deploy.yml` 里 `branches: [master]` 改成 `branches: [main]`
+**分支说明**：本地与远端分支均已统一为 `main`，
+`deploy.yml` 监听的也是 `main`，三者一致，无需额外处理。
 
 ### 3. 开启 Pages
 

@@ -1,10 +1,10 @@
-# GitHub Pages 部署工作流：push 到 master 时自动构建并发布
-# 流程：checkout → 装 Node → 装依赖 → vite build → 把 dist/ 推到 gh-pages 分支
+# GitHub Pages 部署工作流：push 到 main 时自动构建并发布
+# 流程：checkout → 装 Node → 装依赖 → vite build → dist/ 上传为 Pages 工件 → deploy-pages 发布
 name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch: # 允许在 Actions 页手动触发
 
 permissions:
