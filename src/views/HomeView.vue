@@ -67,11 +67,12 @@ function finishHomeLoading() {
  * 全部说完停 10 秒从头循环。与 dimcoi 首页的打印机效果同源。
  */
 const INTRO_SENTENCES = [
-  '你好，我是一名优秀的前端开发工程师。',
-  '深耕 Web 可视化领域，专注 three.js 开发。',
-  '从 shader、GPGPU 到大规模渲染优化，均有实战经验。',
-  '这个页面上的 4096 只鸟，就是我写的一笔小小演示。',
-  '期待与您共事，用代码创造令人惊叹的视觉体验。',
+  'Hello，我是有十年经验的前端工程师',
+  '熟悉前端架构、效能优化与跨平台开发',
+  '长期深耕 Web 视觉化领域，专研 Three.js、WebGL 相关开发',
+  '擅长打通 2D 业务页面与 3D 互动场景，从需求到上线独立完成整合开发',
+  '兼顾视觉效果、渲染效能与使用者体验',
+  '期待和团队一起打造优秀的视觉项目 ^v^',
 ];
 const displayText = ref('');
 const typing = ref(false); // 打字中：光标显示
@@ -94,23 +95,26 @@ function startIntroLoop() {
       if (i >= text.length) {
         clearInterval(typeTimer);
         typeTimer = null;
-        // 打完：光标先撤，整句（含背景条）停留 1.6s；最后一句消失后再停 10s 循环
+        // 打完：光标先撤，整句（含背景条）停留；末句停留更久，之后再停 10s 循环
         const isLast = si === INTRO_SENTENCES.length - 1;
         typing.value = false;
-        holdTimer = setTimeout(() => {
-          displayText.value = '';
-          holdVisible.value = false; // 整行（含背景）消失
-          if (isLast) {
-            holdTimer = setTimeout(() => {
-              holdTimer = null;
-              si = 0;
+        holdTimer = setTimeout(
+          () => {
+            displayText.value = '';
+            holdVisible.value = false; // 整行（含背景）消失
+            if (isLast) {
+              holdTimer = setTimeout(() => {
+                holdTimer = null;
+                si = 0;
+                typeSentence();
+              }, 10000);
+            } else {
+              si++;
               typeSentence();
-            }, 10000);
-          } else {
-            si++;
-            typeSentence();
-          }
-        }, 1600);
+            }
+          },
+          isLast ? 6000 : 3300,
+        ); // 末句停留 6s，其余...
       }
     }, 90);
   };
@@ -186,7 +190,7 @@ let mouseY = 10000;
 /* —— 自动驱鸟：无真实鼠标输入时，虚拟猎物周期性巡游（用户一动鼠标即让位） —— */
 const AUTO_IDLE_MS = 3000; // 鼠标静默多久后启用自动模式
 const AUTO_SWEEP_MS = 1500; // 单次巡游时长（缓入缓出扫过一段路径）
-const AUTO_REST_MS = 2500; // 两次巡游之间的休息
+const AUTO_REST_MS = 10000; // 两次巡游之间的休息,一次巡游结束后歇 AUTO_REST_MS 秒再发起下一次
 let lastPointerAt = 0; // 最近一次真实鼠标移动时刻（0 = 页面加载后即自动）
 let autoNextAt = 0; // 下次巡游开始的时刻
 let autoSweep = null; // 进行中的巡游 {fromX, fromY, toX, toY, start}
@@ -689,7 +693,7 @@ onBeforeUnmount(() => {
   position: absolute;
   left: 20%;
   top: 15%;
-  max-width: 36em; /* 最长一句一行放得下，不换行跳动 */
+  max-width: 800px; /* 文本超过即换行 */
   z-index: 10;
   pointer-events: none; /* 纯展示，不挡鼠标驱鸟 */
 }
@@ -700,13 +704,12 @@ onBeforeUnmount(() => {
   font-size: 38px; /* 20px × 近两倍 */
   line-height: 1.6;
   color: #fff;
-  /* 蓝色调试底：直接垫在文字行后面，box-decoration-break 保证多行时每行都断开补齐 */
+  /* 高亮底直接垫在文字后面，box-decoration-break 保证换行时每行都断开补齐 */
   background: var(--color2);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
   padding: 2px 10px;
   border-radius: 6px;
-  white-space: nowrap;
 }
 
 /* 光标：打字中常亮 */
