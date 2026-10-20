@@ -61,6 +61,10 @@ git push -u origin main
 **分支说明**：本地与远端分支均已统一为 `main`，
 `deploy.yml` 监听的也是 `main`，三者一致，无需额外处理。
 
+**仓库命名**：必须是 `<用户名>.github.io` 全等（本项目 = `fonghokcung.github.io`），
+GitHub 才会把它识别为用户站点并部署在根路径；
+带 `.github.io` 后缀但与用户名不一致的仓库名会被当项目站点，URL 带子路径。
+
 ### 3. 开启 Pages
 
 仓库 Settings → Pages → Build and deployment → Source 选
