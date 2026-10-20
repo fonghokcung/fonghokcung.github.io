@@ -51,20 +51,26 @@ let homeMinTimer = null;
 
 // 模型就绪后调用：距开始加载不足 1s 则补齐差额再撤遮罩
 function finishHomeLoading() {
+  const begin = () => {
+    homeLoading.value = false;
+    startIntro(); // 遮罩撤除与打字机首启同步，逐字动画一帧不落
+  };
   const remain = HOME_MIN_LOADING_MS - (performance.now() - homeLoadStartAt);
   if (remain > 0) {
     homeMinTimer = setTimeout(() => {
       homeMinTimer = null;
-      homeLoading.value = false;
+      begin();
     }, remain);
   } else {
-    homeLoading.value = false;
+    begin();
   }
 }
 
-/* ===================== 打字机自我介绍 =====================
+/* ===================== 打字机自我介绍（由主渲染循环 rAF 驱动，零定时器） =====================
  * 逐字打出一句 → 停顿后整句消失 → 原位置继续下一句；
  * 全部说完停 10 秒从头循环。与 dimcoi 首页的打印机效果同源。
+ * 时间状态机：每帧对照 performance.now() 推进相位，不再用 setInterval/setTimeout
+ * （定时器回调与渲染帧不同步，且后台节流会造成回帧爆发）。
  */
 const INTRO_SENTENCES = [
   'Hello，我是有十年经验的前端工程师',
@@ -74,59 +80,76 @@ const INTRO_SENTENCES = [
   '兼顾视觉效果、渲染效能与使用者体验',
   '期待和团队一起打造优秀的视觉项目 ^v^',
 ];
+const INTRO_TYPE_MS = 90; // 打字间隔（ms/字）
+const INTRO_HOLD_MS = 3300; // 整句停留（末句见 INTRO_LAST_HOLD_MS）
+const INTRO_LAST_HOLD_MS = 6000; // 末句停留
+const INTRO_GAP_MS = 10000; // 末句消失后的空场，之后从头循环
 const displayText = ref('');
 const typing = ref(false); // 打字中：光标显示
-const holdVisible = ref(false); // 打完后的停留展示期：背景条随文字保留
+const holdVisible = ref(false); // 停留展示期：背景条随文字保留
 
-let typeTimer = null;
-let holdTimer = null;
+/* 相位机：typing 打字 → hold 整句停留 →（末句）gap 空场 → 回到 typing */
+let intro = null; // { si, chars, phase, phaseStart }
 
-function startIntroLoop() {
-  let si = 0; // 句子索引
-
-  const typeSentence = () => {
-    const text = INTRO_SENTENCES[si];
-    let i = 0;
-    typing.value = true;
-    holdVisible.value = true;
-    displayText.value = '';
-    typeTimer = setInterval(() => {
-      displayText.value = text.slice(0, ++i);
-      if (i >= text.length) {
-        clearInterval(typeTimer);
-        typeTimer = null;
-        // 打完：光标先撤，整句（含背景条）停留；末句停留更久，之后再停 10s 循环
-        const isLast = si === INTRO_SENTENCES.length - 1;
-        typing.value = false;
-        holdTimer = setTimeout(
-          () => {
-            displayText.value = '';
-            holdVisible.value = false; // 整行（含背景）消失
-            if (isLast) {
-              holdTimer = setTimeout(() => {
-                holdTimer = null;
-                si = 0;
-                typeSentence();
-              }, 10000);
-            } else {
-              si++;
-              typeSentence();
-            }
-          },
-          isLast ? 6000 : 3300,
-        ); // 末句停留 6s，其余...
-      }
-    }, 90);
-  };
-
-  typeSentence();
+function startIntro() {
+  intro = { si: 0, chars: 0, phase: 'typing', phaseStart: performance.now() };
+  typing.value = true;
+  holdVisible.value = true;
+  displayText.value = '';
 }
 
-function stopIntroLoop() {
-  if (typeTimer) clearInterval(typeTimer);
-  if (holdTimer) clearTimeout(holdTimer);
-  typeTimer = null;
-  holdTimer = null;
+function stepIntro(now) {
+  const st = intro;
+  if (!st) return;
+  const text = INTRO_SENTENCES[st.si];
+
+  if (st.phase === 'typing') {
+    // 由已流逝时间直接算出应显示的字数（跳帧也能追上，不丢字也不抢跑）
+    const n = Math.min(
+      text.length,
+      Math.floor((now - st.phaseStart) / INTRO_TYPE_MS),
+    );
+    if (n !== st.chars) {
+      st.chars = n;
+      displayText.value = text.slice(0, n);
+    }
+    if (n >= text.length) {
+      typing.value = false; // 光标先撤，整句（含背景条）进入停留期
+      st.phase = 'hold';
+      st.phaseStart = now;
+    }
+  } else if (st.phase === 'hold') {
+    const hold =
+      st.si === INTRO_SENTENCES.length - 1 ? INTRO_LAST_HOLD_MS : INTRO_HOLD_MS;
+    if (now - st.phaseStart >= hold) {
+      displayText.value = '';
+      holdVisible.value = false; // 整行（含背景）消失
+      if (st.si === INTRO_SENTENCES.length - 1) {
+        st.phase = 'gap'; // 末句：空场 10s 后从头循环
+        st.phaseStart = now;
+      } else {
+        st.si++; // 其余句子：下一句立接开打
+        st.chars = 0;
+        st.phase = 'typing';
+        typing.value = true;
+        holdVisible.value = true;
+        st.phaseStart = now;
+      }
+    }
+  } else if (now - st.phaseStart >= INTRO_GAP_MS) {
+    st.si = 0;
+    st.chars = 0;
+    st.phase = 'typing';
+    typing.value = true;
+    holdVisible.value = true;
+    st.phaseStart = now;
+  }
+}
+
+function stopIntro() {
+  intro = null;
+  typing.value = false;
+  holdVisible.value = false;
   displayText.value = '';
 }
 
@@ -139,8 +162,8 @@ onMounted(() => {
     if (rect.width > 0 || rect.height > 0) onStageResize();
   });
   resizeObserver.observe(stageRef.value);
-
-  startIntroLoop();
+  // 打字机不在 mounted 启动：遮罩至少盖 1s，此刻开打等于白白损失前几句，
+  // 改为遮罩撤除（finishHomeLoading）时由 loop 内 startIntro() 首启
 });
 
 /* ===================== 模拟配置（与官方示例一致） ===================== */
@@ -606,6 +629,7 @@ function loop() {
   if (disposed) return;
   rafId = requestAnimationFrame(loop);
   stats.begin();
+  stepIntro(performance.now()); // 打字机相位机：并入渲染帧，不再走定时器
   render();
   stats.end();
 }
@@ -652,7 +676,7 @@ function dispose() {
 
 /* ===================== 生命周期 ===================== */
 onBeforeUnmount(() => {
-  stopIntroLoop();
+  stopIntro();
   if (homeMinTimer) clearTimeout(homeMinTimer);
   homeMinTimer = null;
   dispose();
