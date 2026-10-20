@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout class="LevelofDetail__vue" ref="layoutRef" @stage-resize="onResize">
     <template #default>
       <h2 class="txt-title">LOD · 细节层次</h2>
       <p class="txt-sub">

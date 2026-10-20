@@ -56,6 +56,12 @@ const router = createRouter({
       component: () => import('../views/ParticleEffe.vue'),
     },
     {
+      path: '/fire',
+      name: 'Fire',
+      zh: 'Quarks-火焰',
+      component: () => import('../views/QuarksFire.vue'),
+    },
+    {
       path: '/manUal',
       name: 'ManUal',
       zh: 'ManUal',

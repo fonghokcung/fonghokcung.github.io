@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout class="NoiSe__vue" ref="layoutRef" @stage-resize="onResize">
     <template #default>
       <h2 class="txt-title">噪声山脉</h2>
 

@@ -1,8 +1,7 @@
 <template>
   <!-- 首页不用 ThreeLayout：无 txt 面板，canvas 全屏铺满 -->
-  <div ref="stageRef" class="stage">
-    <p v-if="loading" class="loading-tip">加载模型中…</p>
-    <p v-else-if="loadError" class="loading-tip error">{{ loadError }}</p>
+  <div ref="stageRef" class="stage HomeView__vue" v-loading="homeLoading">
+    <p v-if="loadError" class="loading-tip error">{{ loadError }}</p>
 
     <!-- 打字机自我介绍：偏左 20% / 偏上 15%，逐句打出 → 整句消失 → 下一句 -->
     <div class="intro">
@@ -42,8 +41,26 @@ import injectDecl from '@/shaders/birds/inject-decl.vert?raw';
 import injectTransform from '@/shaders/birds/inject-transform.vert?raw';
 
 const stageRef = ref(null);
-const loading = ref(true);
+const homeLoading = ref(true);
 const loadError = ref('');
+
+/* 遮罩至少展示 1s：模型秒开时转圈圈一闪而过反而刺眼 */
+const HOME_MIN_LOADING_MS = 1000;
+const homeLoadStartAt = performance.now();
+let homeMinTimer = null;
+
+// 模型就绪后调用：距开始加载不足 1s 则补齐差额再撤遮罩
+function finishHomeLoading() {
+  const remain = HOME_MIN_LOADING_MS - (performance.now() - homeLoadStartAt);
+  if (remain > 0) {
+    homeMinTimer = setTimeout(() => {
+      homeMinTimer = null;
+      homeLoading.value = false;
+    }, remain);
+  } else {
+    homeLoading.value = false;
+  }
+}
 
 /* ===================== 打字机自我介绍 =====================
  * 逐字打出一句 → 停顿后整句消失 → 原位置继续下一句；
@@ -342,11 +359,12 @@ new GLTFLoader().load(
     BirdGeometry.setIndex(indices);
 
     init(BirdGeometry);
+    finishHomeLoading(); // 场景就绪，遮罩至少展示 1s 后再撤
   },
   undefined,
   (err) => {
     if (disposed) return;
-    loading.value = false;
+    finishHomeLoading(); // 失败也要撤遮罩（露出错误提示）
     loadError.value = '模型加载失败：' + (err?.message ?? err);
   },
 );
@@ -401,7 +419,6 @@ function init(birdGeometry) {
   container.addEventListener('pointermove', onPointerMove);
 
   onStageResize();
-  loading.value = false;
   loop();
 }
 
@@ -632,6 +649,8 @@ function dispose() {
 /* ===================== 生命周期 ===================== */
 onBeforeUnmount(() => {
   stopIntroLoop();
+  if (homeMinTimer) clearTimeout(homeMinTimer);
+  homeMinTimer = null;
   dispose();
 });
 </script>
@@ -645,6 +664,9 @@ onBeforeUnmount(() => {
   overflow: hidden;
 }
 
+/* 加载中改用全局 v-loading 指令（白色遮罩 + 转圈圈），此处仅保留错误提示 */
+
+/* 错误提示沿用原胶囊样式 */
 .loading-tip {
   position: absolute;
   top: 50%;

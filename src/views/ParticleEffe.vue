@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout class="ParticleEffe__vue" ref="layoutRef" @stage-resize="onResize">
     <template #default>
       <h2 class="txt-title">《光阴的歌》（东山少爷）</h2>
       <!-- 歌词面板：直接复用 LINES（与画布同一数据源），溢出出竖向滚动条 -->
@@ -25,6 +25,7 @@
 <script setup>
 /* 歌词滚动 + 化沙退出动画（纯 2D Canvas）
  * 流程：每句停留 LINE_TIME 秒 → 旧句化沙随风散尽 → 整列滚动到下一句，循环往复
+ * 背景层：极慢飘雪（垫在歌词与飞沙之下，只做氛围）
  */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import ThreeLayout from '@/components/ThreeLayout.vue';
@@ -58,6 +59,83 @@ let current = 0; // 当前句下标
 let lineTime = 0; // 当前句已停留时间（秒）
 let scrollCur = 0; // 平滑滚动位置（px）
 let lastTime = 0;
+let snowT = 0; // 飘雪累计时间（秒），摆动相位用
+
+/* ===================== 背景飘雪 ===================== */
+// 参考 three.js 官方 webgpu_compute_particles_snow：固定锚点 + 双正弦超低频长弧摆动
+// + 极慢下落 + 大量软边小粒子。x/z 两轴摆动各映射到屏幕横向，合成不规则长弧漂移
+let snow = [];
+let snowSprite = null; // 预渲染软圆雪粒（径向渐变），比硬边圆柔和得多
+
+function makeSnowSprite() {
+  const s = document.createElement('canvas');
+  s.width = s.height = 32;
+  const c = s.getContext('2d');
+  const g = c.createRadialGradient(16, 16, 0, 16, 16, 16);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.5, 'rgba(255,255,255,0.9)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 32, 32);
+  snowSprite = s;
+}
+
+// 生成一片雪：所有量随 r（远近）联动，大片=近=快=实
+function newFlake(anywhere) {
+  const r = 0.6 + Math.random() * 2.4; // 半径 0.6~3.0px
+  return {
+    x0: Math.random() * viewW, // 摆动锚点（参考例存初始 x/z 的思路）
+    y: anywhere ? Math.random() * viewH : -8,
+    r,
+    vy: (7 + Math.random() * 15) * (0.5 + ((r - 0.6) / 2.4) * 0.9), // 下落 4~30px/s
+    // 双正弦长弧：参考例 x=sin(t·r²·s)·3、z=cos(t·r·s)·10r——频率互质、
+    // 周期 15s 起步，相位随机，轨迹是不闭合的利萨茹长弧，永不折返
+    a1: 7 + Math.random() * 15, // 主摆幅
+    w1: 0.05 + Math.random() * 0.3, // 主角频率 rad/s（周期 21~125s）
+    a2: 5 + Math.random() * 25, // 副摆幅（可很大，负责慢漂移）
+    w2: 0.08 + Math.random() * 0.32, // 副角频率
+    p1: Math.random() * Math.PI * 2,
+    p2: Math.random() * Math.PI * 2,
+    a: 0.3 + ((r - 0.6) / 2.4) * 0.55 + Math.random() * 0.05, // 近实远淡
+  };
+}
+
+function initSnow() {
+  makeSnowSprite();
+  const n = Math.min(420, Math.round((viewW * viewH) / 2800)); // 大幅加密度，雪才像雪
+  snow = [];
+  for (let i = 0; i < n; i++) snow.push(newFlake(true));
+}
+
+function updateSnow(dt) {
+  snowT += dt;
+  for (const f of snow) {
+    f.y += f.vy * dt;
+    // 位置式双正弦：绕锚点的长弧摆动（参考例同款结构）
+    f.x =
+      f.x0 +
+      Math.sin(snowT * f.w1 + f.p1) * f.a1 +
+      Math.sin(snowT * f.w2 + f.p2) * f.a2;
+    // 落出底部：回顶部、锚点重随机
+    if (f.y - f.r > viewH) {
+      f.y = -8;
+      f.x0 = Math.random() * viewW;
+    }
+    // 长弧把 x 甩出边界时对锚点环形回绕
+    const m = f.a1 + f.a2 + f.r * 4;
+    if (f.x < -m) f.x0 += viewW + m * 2;
+    else if (f.x > viewW + m) f.x0 -= viewW + m * 2;
+  }
+}
+
+function drawSnow() {
+  for (const f of snow) {
+    ctx.globalAlpha = f.a;
+    const s = f.r * 2.5; // 贴图含柔和光晕，绘制尺寸略大于逻辑半径
+    ctx.drawImage(snowSprite, f.x - s / 2, f.y - s / 2, s, s);
+  }
+  ctx.globalAlpha = 1;
+}
 
 // 化沙退出状态：旧句字形采样成沙粒
 // 原句本体始终整句显示，风化过程只通过飞沙粒子表现
@@ -173,6 +251,9 @@ function draw() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
+  // 飘雪垫底：最先画，位于飞沙与歌词之下
+  drawSnow();
+
   // 飞沙层先画：粒子始终垫在歌词后面，不遮挡文字
   if (exiting) {
     const er = exitState;
@@ -268,6 +349,7 @@ function loop(now) {
     scrollCur += (offsets[current] - scrollCur) * Math.min(1, dt * 6);
     if (lineTime >= dur) advance();
   }
+  updateSnow(dt); // 飘雪不受化沙影响，一直下
   draw();
 }
 
@@ -286,18 +368,13 @@ function onResize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   viewW = rect.width;
   viewH = rect.height;
-}
-
-// 点击舞台立即切换下一句
-function onClickStage() {
-  advance();
+  if (!snow.length) initSnow(); // 首次拿到尺寸时生成雪片；后续仅随视口自然回收
 }
 
 /* ===================== 生命周期 ===================== */
 onMounted(() => {
   canvasEl = canvasRef.value;
   ctx = canvasEl.getContext('2d');
-  canvasEl.addEventListener('click', onClickStage);
   onResize();
   lastTime = performance.now();
   // 显式触发霞鹜文楷加载再启动：canvas 经 JS 绘制不会自动触发 webfont 下载，
@@ -319,7 +396,6 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true;
   cancelAnimationFrame(rafId);
-  canvasEl?.removeEventListener('click', onClickStage);
 });
 </script>
 
@@ -341,6 +417,5 @@ onBeforeUnmount(() => {
   width: 100%;
   height: 100%;
   background: #0d1b2a;
-  cursor: pointer;
 }
 </style>

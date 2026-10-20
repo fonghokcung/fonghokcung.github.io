@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout
+  <ThreeLayout class="DTwin__vue"
     ref="layoutRef"
     txt-title="车间数字孪生"
     txt-sub="俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 < 10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。"

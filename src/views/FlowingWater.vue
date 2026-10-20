@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout class="FlowingWater__vue" ref="layoutRef" @stage-resize="onResize">
     <template #default>
       <h2 class="txt-title">流动水波</h2>
       <p class="txt-sub">

@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout class="ToolBox__vue" ref="layoutRef" @stage-resize="onResize">
     <!-- https://www.tourboxtech.com/jp/tourbox-elite-natural-series/ -->
     <template #default>
       <h2 class="txt-title">ToolBox · GLB 资产陈列与交互演示</h2>
@@ -141,7 +141,7 @@ function init() {
   const fill = new THREE.DirectionalLight(0xbcd0ff, 0.9);
   fill.position.set(-4, 2, -3);
   scene.add(fill);
-  const rim = new THREE.DirectionalLight(0xffffff, 1.6);
+  const rim = new THREE.DirectionalLight(0xffffff, 4.6);
   rim.position.set(-2, 5, -6); // 右后方高位，勾出模型顶部/侧缘亮边
   scene.add(rim);
 
@@ -171,6 +171,10 @@ function init() {
 }
 
 /* ===================== 加载并排布模型 ===================== */
+// 非主角模型的反照率补偿系数：灯光为烘托黑色主角而偏强，高反照率的
+// 彩色模型（尤其白色）会过曝到纯白。把它们的材质颜色整体调暗以还原
+// 细节；主角（mesh版）材质零改动，保持既定观感
+const SATELLITE_DIM = 0.44;
 // 单个 glb → { model, width, label }；失败 resolve null（allSettled 聚合，不阻塞其余）
 function loadOne(item) {
   return new Promise((resolve) => {
@@ -185,6 +189,21 @@ function loadOne(item) {
         const size = box.getSize(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
         model.scale.setScalar(2.2 / maxDim);
+
+        // 反照率补偿：仅非主角模型。遍历去重（glb 内多 mesh 常共享材质，
+        // 需避免同一材质被反复乘暗）
+        if (item.label !== 'mesh版') {
+          const seen = new Set();
+          model.traverse((o) => {
+            if (!o.isMesh) return;
+            const mats = Array.isArray(o.material) ? o.material : [o.material];
+            for (const m of mats) {
+              if (!m?.color || seen.has(m)) continue;
+              seen.add(m);
+              m.color.multiplyScalar(SATELLITE_DIM);
+            }
+          });
+        }
 
         // 缩放后重算包围盒：底部对齐 y=0（落地），量出缩放后宽度
         const scaledBox = new THREE.Box3().setFromObject(model);
@@ -223,6 +242,16 @@ async function loadModels() {
 
 /* ===================== 拾取与选中 ===================== */
 let pickedMesh = null; // 当前选中零件（左键：高亮 + 标注）
+// 高亮零件：克隆材质后改主题黄（glb 内零件常共享材质实例，直接改会
+// 污染同材质的其他零件）。旋转类在拾取瞬间调用；按压键位延迟到按压
+// 动画结束后调用（见 startPress / 渲染循环），幂等
+function applyHighlight(mesh) {
+  if (mesh.userData._origMat) return; // 已高亮
+  mesh.userData._origMat = mesh.material; // 备份原材质
+  mesh.material = mesh.material.clone();
+  mesh.material.color.set('#fbd509'); // 主题黄（base.css --color-primary）
+  if (mesh.material.emissive) mesh.material.emissive.set(0x664400);
+}
 
 /* ===================== 相机飞近 ===================== */
 // 点击选中零件时，若相机离所选模型太远则平滑飞近：动画期间每帧对
@@ -360,9 +389,12 @@ const PRESS_PARTS = {
   C2: new THREE.Vector3(0, 0, -1),
 };
 // .0002,.1
-const PRESS_DEPTH = 0.0002; // 压入深度（世界单位）
+const PRESS_DEPTH = 0.00005; // 压入深度（世界单位）
 const PRESS_T = 0.1; // 单程时长（s），全程压入+弹回 = PRESS_T × 2
+const PRESS_HL_DELAY = 0.44; // 按压动画结束后到变黄的延迟（s）
 let press = null; // { mesh, pivot, origParent, dir, t }
+let pendingHlMesh = null; // 待变黄的按压件
+let pendingHlT = 0; // 变黄倒计时（s）
 // 开始按压：pivot 挂到 mesh 原父节点下，局部轴对齐世界轴（同 startSpin），
 // 之后 pivot.position 可直接用世界方向表达；attach 保证 mesh 原地待动
 function startPress(mesh, dirWorld) {
@@ -484,6 +516,7 @@ function pickAt(e, btn) {
     }
     stopSpin();
     stopPress();
+    pendingHlMesh = null; // 作废未兑现的延迟变黄
     pickedMesh = null;
     label.value.visible = false;
     return;
@@ -498,22 +531,18 @@ function pickAt(e, btn) {
   }
 
   // 左键：高亮选中零件（材质是共享的，需克隆后整卡换色）
-  if (pickedMesh && pickedMesh !== mesh) {
+  // 还原上一个选中件：_origMat 存在才说明已高亮（按压件可能尚未变色，
+  // 此时不能把 material 覆盖成 undefined）
+  if (pickedMesh && pickedMesh !== mesh && pickedMesh.userData._origMat) {
     pickedMesh.material = pickedMesh.userData._origMat;
     delete pickedMesh.userData._origMat;
   }
   if (spin?.mesh !== mesh) stopSpin(); // 换选：先还原上一个旋转件
   stopPress(); // 按键动画是一次性的，任何新拾取都先复位
-  if (!mesh.userData._origMat) {
-    mesh.userData._origMat = mesh.material; // 备份原材质
-    mesh.material = mesh.material.clone(); // 克隆后改色，不污染同材质零件
-    mesh.material.color.set('#fbd509'); // 主题黄（base.css --color-primary）
-    if (mesh.material.emissive) {
-      mesh.material.emissive.set(0x664400);
-    }
-  }
   pickedMesh = mesh;
   const label_ = PARTS[hitName];
+  // 变黄时机：按压键位等按压动画结束才变色（见渲染循环），其余立即变黄
+  if (!PRESS_PARTS[label_]) applyHighlight(mesh);
   // 旋转/按压/标注的呈现：若相机需要飞近，挂起到落地后执行——
   // 先飞到位，再看到零件动起来、引线拉出，叙事顺序自然
   const reveal = () => {
@@ -773,12 +802,23 @@ function startLoop() {
         const k = (press.t - half) / half;
         offset = PRESS_DEPTH * (1 - k * k); // easeInQuad 回弹
       } else {
+        // 按压动画走完：延迟片刻再染主题黄（拾取时未变色）
+        pendingHlMesh = press.mesh;
+        pendingHlT = PRESS_HL_DELAY;
         stopPress();
         offset = 0;
       }
       if (press) {
         // pivot 局部轴已对齐世界轴，position = 世界方向 × 偏移量
         press.pivot.position.copy(press.dir).multiplyScalar(offset);
+      }
+    }
+    // 按压后延迟变黄：倒计时归零且仍为当前选中件时，才染主题黄
+    if (pendingHlMesh) {
+      pendingHlT -= dt;
+      if (pendingHlT <= 0) {
+        if (pendingHlMesh === pickedMesh) applyHighlight(pendingHlMesh);
+        pendingHlMesh = null;
       }
     }
     controls.update();
@@ -812,6 +852,7 @@ function dispose() {
   pickedMesh = null;
   stopSpin();
   stopPress();
+  pendingHlMesh = null; // 作废未兑现的延迟变黄
   cancelAnimationFrame(rafId);
   renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
   renderer?.domElement.removeEventListener('pointerup', onPointerUp);

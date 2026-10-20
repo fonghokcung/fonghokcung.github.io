@@ -1,5 +1,5 @@
 <template>
-  <ThreeLayout ref="layoutRef" @stage-resize="scheduleRender">
+  <ThreeLayout class="TheEarth__vue" ref="layoutRef" @stage-resize="scheduleRender">
     <!-- 文案面板：显式指定默认 slot 自定义（替代 txt-title/sub/hint props） -->
     <template #default>
       <h2 class="txt-title">地球</h2>
