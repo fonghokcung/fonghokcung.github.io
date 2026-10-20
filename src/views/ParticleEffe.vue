@@ -1,5 +1,10 @@
 <template>
-  <ThreeLayout class="ParticleEffe__vue" ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout
+    v-loading="fontLoading"
+    class="ParticleEffe__vue"
+    ref="layoutRef"
+    @stage-resize="onResize"
+  >
     <template #default>
       <h2 class="txt-title">《光阴的歌》（东山少爷）</h2>
       <!-- 歌词面板：直接复用 LINES（与画布同一数据源），溢出出竖向滚动条 -->
@@ -33,6 +38,8 @@ import LINES from '@/assets/lyrics-guangyin.js'; // 歌词数据（展平行列�
 
 const layoutRef = ref(null);
 const canvasRef = ref(null);
+/* 字体未就绪时盖加载遮罩：避免首句以回退雅黑渲染后突然跳成文楷 */
+const fontLoading = ref(true);
 
 /* ===================== 排版 / 节奏参数 ===================== */
 const LINE_H = 72; // 行距（px）
@@ -142,8 +149,8 @@ function drawSnow() {
 let exitState = null;
 let exitLine = -1; // 正在化沙的句子下标，-1 表示无
 {
-  const PX = 4; // 采样步长（px），字号翻倍后相应放大，控制出生点总量
-  const COPIES = 4; // 每个出生点克隆成几粒沙（直接控制粒子总量倍数）
+  const PX = 2; // 采样密度（px）：撒点越密总量越大，配合无克隆控制粒子数
+  const COPIES = 1; // 不再克隆：同一位置多粒编队飞行会产生规则感
   exitState = {
     PX,
     COPIES,
@@ -152,13 +159,18 @@ let exitLine = -1; // 正在化沙的句子下标，-1 表示无
     vx: null, // 水平初速
     vy: null, // 垂直初速
     delay: null, // 起风延迟（秒）：行尾先飞
+    rs: null, // 沙粒尺寸（px），粒粒随机
+    ra: null, // 沙粒基础透明度，粒粒随机
     n: 0, // 沙粒数量
     t: 0, // 化沙已进行时间（秒）
     halfW: 1, // 字形半宽（px），行首/行尾归一化用
   };
 }
 
-// 离屏渲染文字并按网格采样 alpha 通道，得到沙粒出生点（相对文字中心）
+// 离屏渲染文字后两级随机采样：
+// ① 拒绝采样——包围盒随机撒点，命中笔画才收（位置真随机）
+// ② blob 疏密场——32px 粗格随机 + 3×3 盒滤波 + 对比度拉满（0.03~1），
+//    密度成大片贫富区（平滑 blob 而非椒盐碎点），根治「处处一样密」
 function sampleTextPoints(text, fs) {
   const off = document.createElement('canvas');
   const octx = off.getContext('2d', { willReadFrequently: true });
@@ -173,16 +185,45 @@ function sampleTextPoints(text, fs) {
   c2.textBaseline = 'middle';
   c2.fillText(text, 4, th / 2);
   const img = c2.getImageData(0, 0, tw, th).data;
-  const pts = [];
-  for (let y = 0; y < th; y += exitState.PX) {
-    for (let x = 0; x < tw; x += exitState.PX) {
-      if (img[(y * tw + x) * 4 + 3] > 110) {
-        // 网格点加 ±1px 亚像素抖动，打散规则点阵，视觉更接近真沙
-        pts.push(
-          x - tw / 2 + (Math.random() - 0.5) * 2,
-          y - th / 2 + (Math.random() - 0.5) * 2,
-        );
+  // blob 疏密场：粗格随机 → 盒滤波平滑 → 归一化拉开对比
+  const CELL = 32;
+  const cols = Math.ceil(tw / CELL) + 2;
+  const rows = Math.ceil(th / CELL) + 2;
+  const raw = new Float32Array(cols * rows);
+  for (let i = 0; i < raw.length; i++) raw[i] = Math.random();
+  const density = new Float32Array(cols * rows);
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      let sum = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        const rr = Math.min(rows - 1, Math.max(0, r + dr));
+        for (let dc = -1; dc <= 1; dc++) {
+          const cc = Math.min(cols - 1, Math.max(0, c + dc));
+          sum += raw[rr * cols + cc];
+        }
       }
+      density[r * cols + c] = sum / 9;
+    }
+  }
+  let dMin = Infinity;
+  let dMax = -Infinity;
+  for (let i = 0; i < density.length; i++) {
+    if (density[i] < dMin) dMin = density[i];
+    if (density[i] > dMax) dMax = density[i];
+  }
+  const span = Math.max(1e-6, dMax - dMin);
+  for (let i = 0; i < density.length; i++)
+    density[i] = 0.03 + ((density[i] - dMin) / span) * 0.97;
+
+  const pts = [];
+  const attempts = Math.round((tw * th) / (exitState.PX * exitState.PX));
+  for (let i = 0; i < attempts; i++) {
+    const x = Math.random() * tw;
+    const y = Math.random() * th;
+    const d = density[((y / CELL) | 0) * cols + ((x / CELL) | 0)];
+    if (Math.random() > d) continue; // 疏密调制：按所在 blob 密度决定去留
+    if (img[((y | 0) * tw + (x | 0)) * 4 + 3] > 110) {
+      pts.push(x - tw / 2, y - th / 2);
     }
   }
   return { pts, w: tw };
@@ -202,6 +243,8 @@ function startExit() {
     exitState.vx = new Float32Array(n);
     exitState.vy = new Float32Array(n);
     exitState.delay = new Float32Array(n);
+    exitState.rs = new Float32Array(n);
+    exitState.ra = new Float32Array(n);
   }
   exitState.n = n;
   exitState.t = 0;
@@ -216,9 +259,8 @@ function startExit() {
     const sy = pts[p * 2 + 1];
     exitState.sx[i] = sx + (Math.random() - 0.5) * 2;
     exitState.sy[i] = sy + (Math.random() - 0.5) * 2;
-    // 冲量式初速：方向随机但偏向上（上方概率占大头，正下方极少），
-    // 只靠阻尼减速
-    // 全部粒子同时起飞，仅保留极小随机抖动让爆发更自然
+    // 冲量式初速 + 右上风向：初速 = 全向爆发（100~220）+ 恒定右上风漂移（+70, -55），
+    // 屏幕坐标 y 向下，vy 负值即向上——叠加后整体朝右上飞散
     exitState.delay[i] = Math.random() * 0.06;
     const speed = 100 + Math.random() * 120; // 爆发速度（上抛射程约一半）
     // 方向偏置：95% 上半圆均匀随机（向上占大头），5% 全圆纯随机
@@ -227,8 +269,11 @@ function startExit() {
       r < 0.95
         ? -Math.random() * Math.PI // 上半圆：0°~180° 向上均匀
         : Math.random() * Math.PI * 2 - Math.PI; // 5% 纯随机方向
-    exitState.vx[i] = Math.cos(ang) * speed;
-    exitState.vy[i] = Math.sin(ang) * speed;
+    exitState.vx[i] = Math.cos(ang) * speed + 80; // +x 向右风（比上浮更强）
+    exitState.vy[i] = Math.sin(ang) * speed + 20; // -y 向上风（压低飞高）
+    // 粒粒独立的尺寸与透明度：平方分布偏小粒，避免「粒粒一样大」的均匀感
+    exitState.rs[i] = 1 + Math.random() * Math.random() * 2.4;
+    exitState.ra[i] = 0.3 + Math.random() * 0.7;
   }
 }
 
@@ -259,19 +304,20 @@ function draw() {
     const er = exitState;
     ctx.save();
     ctx.translate(viewW / 2, centerY);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.fillStyle = '#ffffff';
     for (let i = 0; i < er.n; i++) {
       const age = er.t - er.delay[i];
       if (age <= 0) continue;
       const x = er.sx[i];
       const y = er.sy[i];
-      // 透明度分段：前 70% 寿命保持完全不透明（充分呈现），
+      // 透明度分段：前 70% 寿命保持固有透明度（充分呈现），
       // 只在最后 30% 线性淡出，消失时间占比小
       const flyT = age / (EXIT_T - 1.4);
-      const a = flyT >= 1 ? 0 : flyT < 0.7 ? 1 : 1 - (flyT - 0.7) / 0.3;
+      const fade = flyT >= 1 ? 0 : flyT < 0.7 ? 1 : 1 - (flyT - 0.7) / 0.3;
+      const a = fade * er.ra[i]; // 固有透明度 × 寿命淡出
       if (a <= 0.02) continue;
       ctx.globalAlpha = a;
-      const s = 2; // 粒子尺寸（px）
+      const s = er.rs[i]; // 粒粒独立尺寸
       ctx.fillRect(x - s / 2, y - s / 2, s, s);
     }
     ctx.restore();
@@ -379,17 +425,31 @@ onMounted(() => {
   lastTime = performance.now();
   // 显式触发霞鹜文楷加载再启动：canvas 经 JS 绘制不会自动触发 webfont 下载，
   // 仅靠 fonts.ready 可能在字体就绪前就 resolve，导致首句回退雅黑
+  // 遮罩至少展示 1s：字体缓存秒开时转圈一闪而过反而刺眼
   const kick = () => {
     rafId = requestAnimationFrame(loop);
   };
+  const reveal = () => {
+    const remain = 1000 - (performance.now() - mountedAt);
+    if (remain > 0) {
+      setTimeout(() => {
+        fontLoading.value = false;
+        kick();
+      }, remain);
+    } else {
+      fontLoading.value = false;
+      kick();
+    }
+  };
+  const mountedAt = performance.now();
   const probe = `${FONT_WEIGHT} 22px "LXGW WenKai"`;
   if (document.fonts?.load) {
     document.fonts
       .load(probe, '光阴的歌')
       .catch(() => {})
-      .then(() => kick());
+      .then(reveal);
   } else {
-    kick();
+    reveal(); // 无 Font Loading API（兜底）：满 1s 撤遮罩
   }
 });
 

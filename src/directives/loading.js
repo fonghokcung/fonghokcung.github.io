@@ -1,5 +1,6 @@
-/* v-loading 指令（项目通用）：绑定值为真时给宿主盖白色半透明遮罩 + GitHub 风格转圈圈。
+/* v-loading 指令（项目通用）：绑定值为真时给宿主盖白色遮罩 + GitHub 风格转圈圈。
  * 用法：<div v-loading="loading">…</div>
+ * 宿主会自动附加 __vl__ 类（卸载时移除），可全局按 .__vl__ 定位。
  * 依赖：宿主有定位（static 时指令自动补 relative）；遮罩样式经 <style> 全局注入一次 */
 let styleInjected = false;
 
@@ -66,6 +67,7 @@ function hide(el) {
 
 export const vLoading = {
   mounted(el, binding) {
+    el.classList.add('__vl__'); // 标记使用 v-loading 的元素，便于样式/测试定位
     if (binding.value) show(el);
   },
   updated(el, binding) {
@@ -73,6 +75,7 @@ export const vLoading = {
     binding.value ? show(el) : hide(el);
   },
   unmounted(el) {
+    el.classList.remove('__vl__');
     hide(el);
   },
 };

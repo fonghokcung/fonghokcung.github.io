@@ -3,32 +3,50 @@
     class="QuarksFire__vue"
     ref="layoutRef"
     txt-title="Quarks 火焰"
-    txt-sub="three.quarks 是 three.js 生态的通用粒子系统库（Unreal Niagara 风格），本页用它搭出一堆篝火。"
     txt-hint="左键拖拽旋转 · 滚轮缩放 · 右下滑杆实时调参"
     @stage-resize="onResize"
   >
     <template #default>
+      <h2 class="txt-title">Quarks 火焰</h2>
       <p class="txt-sub">
-        一团火被拆成三个ParticleSystem叠在一起：主火（橙红大骨架）、内焰（亮黄短命芯）、火星（高速上飘的小亮点）。
-        三者共用同一个BatchedRenderer，同材质的粒子合并成一个批次绘制，draw call
+        <a
+          class="qk-link"
+          href="https://quarks.art/runtime/tutorials/threejs"
+          target="_blank"
+          rel="noopener noreferrer"
+          >three.quarks</a
+        >——three.js 生态的通用粒子系统库，API 风格对标 Unreal
+        Niagara。本页用它烧一堆篝火：一团火拆成三个
+        <a
+          class="qk-link"
+          href="https://docs.quarks.art/docs/core-components/particle-system"
+          target="_blank"
+          rel="noopener noreferrer"
+          >ParticleSystem</a
+        >
+        叠在一起——
+        主火（橙红大骨架）、内焰（亮黄短命芯）、火星（高速上飘的小亮点），
+        三者共用一个 BatchedRenderer，同材质粒子合并批次绘制，draw call
         不随粒子数增长。
       </p>
-      <p class="txt-sub">形态全靠「发射形状 + 生命周期行为」声明式拼装：</p>
+      <p class="txt-sub">火的形态全靠「发射形状 + 生命周期行为」声明式拼装：</p>
       <p class="txt-sub">
-        · ConeEmitter 圆盘锥形发射，粒子出生在火盆口一圈，初速朝上（发射器绕 X
-        轴旋转 90° 把锥口对准 +Y）；
-        <br />· ColorOverLife + Gradient
-        按寿命插值颜色——白黄→橙→红→暗红，加色混合下正是火的观感； <br />·
-        SizeOverLife + PiecewiseBezier 让火苗「小→鼓→收」，形成舌头形状；
-        <br />· TurbulenceField 用 4D 单纯形噪声扰动速度，火舌因此摇曳； <br />·
-        ApplyForce 恒定风力，把火焰吹歪。
+        · <b>ConeEmitter</b> 柴堆火心一圈出生，初速朝上（发射器绕 X 轴 −90°
+        把锥口对准 +Y）； <br />·
+        <b>ColorOverLife + Gradient</b>
+        按寿命插值——白黄→橙→红→暗红，加色混合下正是火的观感； <br />·
+        <b>SizeOverLife + PiecewiseBezier</b> 火苗「小→鼓→收」，捏出舌头形状；
+        <br />· <b>TurbulenceField</b> 4D 单纯形噪声扰动速度，火舌因此摇曳；
+        <br />· <b>ApplyForce</b> 恒定风，把火焰吹歪。
       </p>
       <p class="txt-sub">
-        贴图只有一张 128×128 的径向渐变（离屏 canvas 现画），加色混合 +
-        深背景，配上随时间闪烁的橙色点光源，氛围就齐了。
+        道具是一座随手堆的柴堆：7 根放射状斜搭 + 2
+        根垫底，长度/朝向/仰角全随机，刷新一次换一座堆。 贴图只有一张 128×128
+        径向渐变（离屏 canvas 现画），配闪烁的橙色点光，氛围就齐了。
       </p>
       <p class="txt-hint">
-        粒子系统 = 发射器 + 行为列表，参数改在行为上，火焰立刻换性格
+        粒子系统 = 发射器 + 行为列表 · 参数改在行为上，火焰立刻换性格 ·
+        右下滑杆实时调参
       </p>
     </template>
 
@@ -55,39 +73,30 @@
 </template>
 
 <script setup>
-/* Quarks 火焰页：three.quarks 声明式粒子系统演示。
- * 三个 ParticleSystem（主火/内焰/火星）共用一个 BatchedRenderer，
- * 滑杆直接改写运行中系统的 public 字段（startSpeed/emissionOverTime/behavior 参数），无需重建。 */
+/* Quarks 火焰页：用 three.quarks（声明式粒子系统库）搭一堆篝火。
+ *
+ * 架构：主火/内焰/火星三个 ParticleSystem，配置对象集中在 buildFlames 的
+ *   defs 数组里；三者共用一个 BatchedRenderer，同材质合并批次绘制。
+ * 形态：ConeEmitter（锥口转朝上）+ ColorOverLife/SizeOverLife 生命周期
+ *   行为 + TurbulenceField（单纯形噪声摇曳）+ ApplyForce（风）声明式拼装。
+ * 交互：右下滑杆热改运行中系统的 public 字段
+ *   （startSpeed/emissionOverTime/behavior 参数），无需重建系统。
+ * 道具：随机柴堆（每次刷新堆形不同）+ 闪烁点光；dispose 完整清理。 */
 import { onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
-import {
-  ApplyForce,
-  BatchedRenderer,
-  Bezier,
-  ColorOverLife,
-  ConeEmitter,
-  ConstantColor,
-  ConstantValue,
-  Gradient,
-  IntervalValue,
-  ParticleSystem,
-  PiecewiseBezier,
-  RenderMode,
-  SizeOverLife,
-  TurbulenceField,
-} from 'three.quarks';
+import * as QUARKS from 'three.quarks'; // 命名空间调用：QUARKS.ParticleSystem({…})
 
 const layoutRef = ref(null);
 
-/* ---------- 滑杆参数（默认值 = 调好的篝火基准） ---------- */
+/* ---------- 滑杆参数与面板（默认值 = 调好的篝火基准） ---------- */
 const params = reactive({
-  rate: 100,
-  speed: 1.5,
-  wind: 0.5,
-  turbulence: 0.5,
-  size: 0.7,
+  rate: 100, // 发射率（粒/秒）：主火 1x，内焰 0.6x，火星 0.15x
+  speed: 1.5, // 火势：初速倍率
+  size: 0.7, // 火苗：初始尺寸倍率
+  turbulence: 0.5, // 湍流强度
+  wind: 0.5, // +X 风力
 });
 const PANEL = [
   { key: 'rate', name: '发射率', min: 20, max: 300, step: 5 },
@@ -97,14 +106,16 @@ const PANEL = [
   { key: 'wind', name: '风', min: 0, max: 3, step: 0.05 },
 ];
 
-/* ---------- three.js 三件套 ---------- */
+/* ---------- three 侧可变状态 ---------- */
 let renderer, scene, camera, controls, batchedRenderer, fireLight;
 let rafId = 0;
 const clock = new THREE.Clock();
-/* 滑杆要热改的对象引用（buildFlames 里填充） */
+/* 滑杆要热改的对象引用（buildFlames 里填充）：
+ * mains = 三个 ParticleSystem，flames = 各层的 wind/turb behavior */
 const linked = { mains: [], flames: [] };
 
-/* ---------- 火焰贴图：离屏 canvas 画径向渐变，中心实、边缘透 ---------- */
+/* ---------- 火焰贴图：离屏 canvas 画径向渐变，中心实、边缘透 ----------
+ * 粒子最终颜色由 ColorOverLife 决定，贴图只负责 alpha 轮廓（柔光斑） */
 function makeGlowTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -122,37 +133,46 @@ function makeGlowTexture() {
 }
 
 /* ---------- 组装一层火焰 ----------
- * speedScale/sizeScale：内焰、火星在主火参数基础上做倍率
- * 返回 { system, wind, turb } 供滑杆热改 */
+ * defs 的每项 opt 描述一层火（半径/寿命/颜色梯度/倍率），此函数负责把它
+ * 变成一个 ParticleSystem。返回 wind/turb 引用供滑杆热改 */
 function buildFlame(tex, opt) {
-  /* 湍流：4D 单纯形噪声逐帧给粒子速度加抖动，octaves=2 叠两层频率 */
-  const turb = new TurbulenceField(
+  /* 湍流：4D 单纯形噪声逐帧给粒子速度加抖动（octaves=2 叠两层频率） */
+  const turb = new QUARKS.TurbulenceField(
     new THREE.Vector3(0.45, 0.45, 0.45), // 噪声空间缩放（越小频率越高）
     2, // octaves
     new THREE.Vector3(opt.turb, opt.turb, opt.turb), // 速度倍率（湍流强度）
     new THREE.Vector3(1, 0.7, 1), // 噪声时间流速
   );
   /* 恒定风力，方向 +X（发射器绕 X 转 90° 不影响 X 轴） */
-  const wind = new ApplyForce(
+  const wind = new QUARKS.ApplyForce(
     new THREE.Vector3(1, 0, 0),
-    new ConstantValue(params.wind),
+    new QUARKS.ConstantValue(params.wind),
   );
 
-  const system = new ParticleSystem({
+  const system = new QUARKS.ParticleSystem({
     duration: 2,
     looping: true,
     prewarm: true, // 首帧预演一个周期，开场即是燃烧中
-    /* 锥形发射：底盘半径 0.35 的圆盘出生，angle 控制锥口外扩；
-     * emitter 默认朝局部 +Z 喷，外层再绕 X 轴 -90° 转成朝上 */
-    shape: new ConeEmitter({ radius: opt.radius, angle: 0.2, thickness: 1 }),
-    startLife: new IntervalValue(opt.life[0], opt.life[1]),
+    /* 锥形发射：底盘半径 opt.radius 的圆盘出生，angle 控制锥口外扩 */
+    shape: new QUARKS.ConeEmitter({
+      radius: opt.radius,
+      angle: 0.2,
+      thickness: 1,
+    }),
+    startLife: new QUARKS.IntervalValue(opt.life[0], opt.life[1]),
     /* 基础速度区间 [0.8,1.4]（与 applyParams 的 SPD 一致）× 层倍率 */
-    startSpeed: new IntervalValue(0.8 * opt.speedScale, 1.4 * opt.speedScale),
-    startSize: new IntervalValue(0.5 * opt.sizeScale, 0.9 * opt.sizeScale),
-    startRotation: new IntervalValue(0, Math.PI * 2), // 出生随机朝向
-    startColor: new ConstantColor(new THREE.Vector4(1, 1, 1, 1)),
-    emissionOverTime: new ConstantValue(opt.rateScale * params.rate),
-    renderMode: RenderMode.BillBoard,
+    startSpeed: new QUARKS.IntervalValue(
+      0.8 * opt.speedScale,
+      1.4 * opt.speedScale,
+    ),
+    startSize: new QUARKS.IntervalValue(
+      0.5 * opt.sizeScale,
+      0.9 * opt.sizeScale,
+    ),
+    startRotation: new QUARKS.IntervalValue(0, Math.PI * 2), // 出生随机朝向
+    startColor: new QUARKS.ConstantColor(new THREE.Vector4(1, 1, 1, 1)),
+    emissionOverTime: new QUARKS.ConstantValue(opt.rateScale * params.rate),
+    renderMode: QUARKS.RenderMode.BillBoard,
     material: new THREE.MeshBasicMaterial({
       map: tex,
       blending: THREE.AdditiveBlending, // 加色：越叠越亮，正是火
@@ -161,17 +181,22 @@ function buildFlame(tex, opt) {
     }),
     behaviors: [
       /* 颜色生命周期：主火 白黄→橙→红→暗红；内焰偏白亮；火星橙→红 */
-      new ColorOverLife(
-        new Gradient(
+      new QUARKS.ColorOverLife(
+        new QUARKS.Gradient(
           opt.colors.map(([r, g, b, t]) => [new THREE.Vector3(r, g, b), t]),
           opt.alpha,
         ),
       ),
       /* 尺寸生命周期：贝塞尔曲线 小→鼓→收，捏出火舌 */
-      new SizeOverLife(
-        new PiecewiseBezier([
+      new QUARKS.SizeOverLife(
+        new QUARKS.PiecewiseBezier([
           [
-            new Bezier(opt.sizeCurve[0], opt.sizeCurve[1], opt.sizeCurve[2], 0),
+            new QUARKS.Bezier(
+              opt.sizeCurve[0],
+              opt.sizeCurve[1],
+              opt.sizeCurve[2],
+              0,
+            ),
             0,
           ],
         ]),
@@ -184,12 +209,14 @@ function buildFlame(tex, opt) {
   return { system, wind, turb };
 }
 
-/* ---------- 三层火焰 ---------- */
+/* ---------- 三层火焰 ----------
+ * defs：主火（大骨架，寿命长）/ 内焰（短命亮芯）/ 火星（高速小亮点）。
+ * radius=发射盘半径，life=寿命区间，speedScale/sizeScale/rateScale=相对主火的倍率，
+ * colors/alpha=寿命梯度，sizeCurve=贝塞尔尺寸曲线（小→鼓→收） */
 function buildFlames(tex) {
   const flameGroup = new THREE.Group();
-  flameGroup.position.y = 0.24; // 火盆口
+  flameGroup.position.y = 0.24; // 柴堆火心高度
 
-  /* 各层配置：颜色梯度 / alpha 梯度 / 尺寸曲线 / 寿命 / 倍率 */
   const defs = [
     {
       // 主火：大骨架
@@ -261,12 +288,16 @@ function buildFlames(tex) {
   scene.add(flameGroup);
 }
 
-/* ---------- 滑杆 → 运行中系统热改（无需重建） ---------- */
+/* ---------- 滑杆 → 运行中系统热改（改 public 字段，无需重建） ---------- */
 function applyParams() {
-  /* 发射率：主火 1x / 内焰 0.6x / 火星 0.15x（与 buildFlames 的 rateScale 一致） */
-  linked.mains[0].emissionOverTime = new ConstantValue(params.rate);
-  linked.mains[1].emissionOverTime = new ConstantValue(params.rate * 0.6);
-  linked.mains[2].emissionOverTime = new ConstantValue(params.rate * 0.15);
+  /* 发射率：主火 1x / 内焰 0.6x / 火星 0.15x（与 defs 的 rateScale 一致） */
+  linked.mains[0].emissionOverTime = new QUARKS.ConstantValue(params.rate);
+  linked.mains[1].emissionOverTime = new QUARKS.ConstantValue(
+    params.rate * 0.6,
+  );
+  linked.mains[2].emissionOverTime = new QUARKS.ConstantValue(
+    params.rate * 0.15,
+  );
   /* 火势与火苗：各层基准区间 × 滑杆倍率 */
   const SPD = [
     [0.8, 1.4],
@@ -275,11 +306,11 @@ function applyParams() {
   ];
   linked.mains.forEach((ps, i) => {
     const sc = [1, 1.25, 1.9][i];
-    ps.startSpeed = new IntervalValue(
+    ps.startSpeed = new QUARKS.IntervalValue(
       SPD[i][0] * sc * params.speed,
       SPD[i][1] * sc * params.speed,
     );
-    ps.startSize = new IntervalValue(
+    ps.startSize = new QUARKS.IntervalValue(
       [0.5, 0.5, 0.5][i] * [1, 0.45, 0.09][i] * params.size,
       [0.9, 0.9, 0.9][i] * [1, 0.45, 0.09][i] * params.size,
     );
@@ -292,7 +323,7 @@ function applyParams() {
       params.turbulence * k,
       params.turbulence * k,
     );
-    wind.magnitude = new ConstantValue(params.wind);
+    wind.magnitude = new QUARKS.ConstantValue(params.wind);
   });
 }
 
@@ -314,10 +345,10 @@ function initScene(container) {
   controls.enableDamping = true;
 
   /* 粒子批次渲染器：同材质系统合并批次 */
-  batchedRenderer = new BatchedRenderer();
+  batchedRenderer = new QUARKS.BatchedRenderer();
   scene.add(batchedRenderer);
 
-  /* 地面 + 火盆（暗色道具，不抢戏） */
+  /* 地面 + 随机柴堆（暗色道具，不抢戏） */
   const ground = new THREE.Mesh(
     new THREE.CircleGeometry(6, 48),
     new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 1 }),
@@ -325,8 +356,8 @@ function initScene(container) {
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
 
-  /* 一小堆木柴：放射状斜搭的篝火柴堆——低端着地、高端聚向火心。
-   * 长度/粗细/仰角/朝向全带随机，再垫两根近平躺的柴，堆得随意 */
+  /* 柴堆：7 根放射状斜搭（低端正着地、高端聚向火心）+ 2 根近平躺垫底柴。
+   * 长度/粗细/仰角/朝向/侧向偏移全随机，每次刷新堆形都不同 */
   const woodMats = [
     new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 0.95 }),
     new THREE.MeshStandardMaterial({ color: 0x54381f, roughness: 0.95 }),
@@ -431,6 +462,15 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 官网链接：主题色 + 虚线下划线提示可点，hover 实线 */
+.qk-link {
+  color: var(--color2);
+  text-decoration: none;
+  border-bottom: 1px dashed currentcolor;
+}
+.qk-link:hover {
+  text-decoration: underline;
+}
 /* 调参面板：悬浮在舞台右下角 */
 .panel {
   position: absolute;

@@ -74,7 +74,7 @@ function finishHomeLoading() {
  */
 const INTRO_SENTENCES = [
   'Hello，我是有十年经验的前端工程师',
-  '熟悉前端架构、效能优化与跨平台开发',
+  '熟悉前端架构、性能优化与跨平台开发',
   '长期深耕 Web 视觉化领域，专研 Three.js、WebGL 相关开发',
   '擅长打通 2D 业务页面与 3D 互动场景，从需求到上线独立完成整合开发',
   '兼顾视觉效果、渲染效能与使用者体验',
@@ -425,7 +425,7 @@ function init(birdGeometry) {
   scene.add(dirLight);
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); // 高分屏像素量封顶，防 4~9 倍过载
   container.appendChild(renderer.domElement);
 
   initComputeRenderer();
@@ -540,6 +540,7 @@ function initBirds(birdGeometry) {
   birdMesh.rotation.y = Math.PI / 2;
   birdMesh.frustumCulled = false; // 鸟群整体包围球巨大，剔除不划算且易误剔除
   // 官方 GUI 默认 count = BIRDS/4：模拟全量 4096 只跑，但只绘制 1024 只
+  // 官方 GUI 默认 count = BIRDS/4 = 1024 只；卡顿时可再减半（BIRDS / 8）
   birdMesh.geometry.setDrawRange(0, indicesPerBird * (BIRDS / 4));
   scene.add(birdMesh);
 }

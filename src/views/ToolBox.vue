@@ -2,25 +2,38 @@
   <ThreeLayout class="ToolBox__vue" ref="layoutRef" @stage-resize="onResize">
     <!-- https://www.tourboxtech.com/jp/tourbox-elite-natural-series/ -->
     <template #default>
-      <h2 class="txt-title">ToolBox · GLB 资产陈列与交互演示</h2>
+      <h2 class="txt-title">TourBox</h2>
       <p class="txt-sub">
-        批量加载：GLTFLoader + Promise.allSettled 并发拉取，单模型失败
-        降级为占位，页面永不阻塞；每个模型按包围盒最大维度归一缩放，
-        底部对齐后等间距排开，主角居中于世界原点。
+        <a
+          class="tb-link"
+          href="https://tourboxtech.com/en/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >TourBox</a
+        >
+        创意控制器——单手掌控剪辑/调色/绘画工作流的创意硬件。此处是它的数字样机：
+        4个模型并发加载（Promise.allSettled，单个失败降级占位不阻塞），
+        按包围盒归一缩放、底部对齐，主角居中、其余一列排开。
       </p>
       <p class="txt-sub">
-        交互演示：左键点选零件高亮并引出折线标注（标签端拉出动画）；
-        转盘/旋钮/滚轮是旋转对称件，选中后模拟人手操作自转——快转、
-        慢调、偶尔反向、时有停顿；右键将视线聚焦到零件所属模型。
+        左键点选零件——高亮变黄、折线标注从标签端拉出；
+        14个键位逐个按压回弹，转盘/旋钮/滚轮以「人手操作」状态机自转——
+        快转、慢调、偶尔反拨、时有停顿，正如「转着调色」的直觉手感。
+        距离过远时相机自动飞近，落地后才演示动画。
       </p>
       <p class="txt-hint">
-        用户拖拽/缩放时标注自动隐藏；相机漫游（autoOrbit）默认关闭，
-        可手动开关体验自动环绕取景
+        <a
+          class="tb-link"
+          href="https://tourboxtech.com/en/"
+          target="_blank"
+          rel="noopener noreferrer"
+          >TourBox</a
+        >
+        - 真正的创作工具，艺术家的最强武器
       </p>
     </template>
 
     <template #stage>
-      <div v-if="loading" class="loading">模型加载中…</div>
       <!-- 选中零件的名称标注：折线 + 标签（ref 拿舞台容器做屏幕投影） -->
       <div ref="labelLayerRef" class="label-layer">
         <svg v-show="label.visible" class="label-svg">
@@ -49,6 +62,9 @@
           >{{ label.text }}</span
         >
       </div>
+
+      <!-- 加载提示用小胶囊：工具页需边加载边观察场景，全屏遮罩反而碍事 -->
+      <div v-if="loading" class="loading">模型加载中…</div>
     </template>
   </ThreeLayout>
 </template>
@@ -70,6 +86,9 @@ import PART_NAME_MAP from '@/assets/tourbox.txt?raw'; // mesh名 → 官方零�
 
 const layoutRef = ref(null);
 const loading = ref(true);
+/* 遮罩至少展示 300ms：本地缓存秒开时转圈一闪而过反而刺眼 */
+const MIN_LOADING_MS = 300;
+const loadStartAt = performance.now();
 const labelLayerRef = ref(null);
 // 标注层响应式状态：折线三顶点 + 标签位置/文字/对齐方向
 const label = ref({
@@ -236,8 +255,14 @@ async function loadModels() {
   }
 
   arrange(boxes);
-  loading.value = false;
-  pickEnabled = true; // 模型就位，启用拾取
+  // 模型就位，遮罩至少展示 300ms 后再撤
+  const reveal = () => {
+    loading.value = false;
+    pickEnabled = true; // 模型就位，启用拾取
+  };
+  const remain = MIN_LOADING_MS - (performance.now() - loadStartAt);
+  if (remain > 0) setTimeout(reveal, remain);
+  else reveal();
 }
 
 /* ===================== 拾取与选中 ===================== */
@@ -880,6 +905,16 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* 零件名标注链接进官网：主题色 + hover 下划线，融进正文排版 */
+.tb-link {
+  color: var(--color2);
+  text-decoration: none;
+  border-bottom: 1px dashed currentcolor;
+}
+.tb-link:hover {
+  text-decoration: underline;
+}
+/* 加载提示小胶囊：左上角浮层，不遮场景（工具页需边加载边观察布局/光照） */
 .loading {
   position: absolute;
   top: 14px;

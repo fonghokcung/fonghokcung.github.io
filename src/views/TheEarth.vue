@@ -1,5 +1,9 @@
 <template>
-  <ThreeLayout class="TheEarth__vue" ref="layoutRef" @stage-resize="scheduleRender">
+  <ThreeLayout
+    class="TheEarth__vue"
+    ref="layoutRef"
+    @stage-resize="scheduleRender"
+  >
     <!-- 文案面板：显式指定默认 slot 自定义（替代 txt-title/sub/hint props） -->
     <template #default>
       <h2 class="txt-title">地球</h2>
@@ -7,7 +11,16 @@
         复刻 threejs.org/manual/#indexed-textures：索引贴图 +
         调色板纹理（点击国家蓝色高亮）+ GPU 拾取 + 国名标签投影。
       </p>
-      <p class="txt-hint">点击国家选中 · Shift/Ctrl 多选 · 点空白取消全部</p>
+      <p class="txt-sub">
+        自转模式：点击左上角时钟进入——地球绕地轴匀速自转（每秒 18° 经度，约合
+        1.2 小时/秒），相机固定在 −Z 轴机位观察昼夜更替；地轴保持 23.44°
+        黄赤交角倾斜，太阳方向由所选日期按 Cooper
+        公式计算（夏至直射北回归线、冬至直射南回归线），
+        背景切换为星空并显示光线箭头。再次点击时钟退出，恢复静止态视角与选区。
+      </p>
+      <p class="txt-hint">
+        点击国家选中 · Shift/Ctrl 多选 · 点空白取消全部 · 点时钟进入自转
+      </p>
     </template>
 
     <template #stage>
