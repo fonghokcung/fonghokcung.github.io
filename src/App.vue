@@ -16,6 +16,13 @@ const routes = router.options.routes;
             :to="route.path"
             :aria-label="route.zh"
           >
+            <!-- Home 项：站标 + 文字并排 -->
+            <img
+              v-if="route.name === 'home'"
+              class="nav-logo"
+              src="/logo.svg"
+              alt=""
+            />
             <span class="fresh-rolling-text" aria-hidden="true">
               <span class="fresh-rolling-text-copy">{{ route.zh }}</span>
               <span
@@ -42,6 +49,8 @@ const routes = router.options.routes;
   width: 200px;
   background: var(--color-bg-dark);
   color: white;
+  height: 100vh;
+  overflow: auto;
 }
 
 nav {
@@ -52,7 +61,9 @@ nav {
 }
 
 nav a {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 10px 16px;
   text-decoration: none;
   font-size: 14px;
@@ -63,6 +74,21 @@ nav a {
 
 nav a.router-link-active {
   color: var(--color-primary);
+}
+
+/* Home 项的站标：img 引用的外部 SVG 无法被外部 CSS 改色，
+ * 白色+黄饰在深色侧栏直接可见，不做激活态变色；悬停转 45° */
+.nav-logo {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* 激活态与悬停同款旋转：单一选择器列表，避免两条规则互相覆盖 */
+nav a:hover .nav-logo,
+nav a.router-link-active .nav-logo {
+  transform: rotate(45deg);
 }
 
 /* ---- Rolling text 效果（motion.dev fresh-site-navigation-links）----

@@ -443,11 +443,16 @@ onMounted(() => {
   };
   const mountedAt = performance.now();
   const probe = `${FONT_WEIGHT} 22px "LXGW WenKai"`;
+  // lxgw-wenkai-webfont 按 unicode-range 切片下发：probe 只喂「光阴的歌」时仅下载
+  // 覆盖这 5 个字的切片，其余歌词/标题字符的切片要等画布或 DOM 真正用到才触发下载，
+  // 遮罩撤掉后仍会看到雅黑→文楷的逐片跳变。把全部歌词 + 标题字符一次性喂给
+  // load()，让所有相关切片就绪后再撤遮罩
+  const allText = LINES.map((l) => l.text).join('') + '《光阴的歌》（东山少爷）';
   if (document.fonts?.load) {
-    document.fonts
-      .load(probe, '光阴的歌')
-      .catch(() => {})
-      .then(reveal);
+    const ready = document.fonts.load(probe, allText).catch(() => {});
+    // CDN 卡死兜底：8s 后无论切片是否齐了都撤遮罩，避免永久转圈
+    const bail = new Promise((resolve) => setTimeout(resolve, 8000));
+    Promise.race([ready, bail]).then(reveal);
   } else {
     reveal(); // 无 Font Loading API（兜底）：满 1s 撤遮罩
   }
