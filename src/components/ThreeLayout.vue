@@ -129,7 +129,7 @@ defineExpose({ stageRef, txtWidth });
     >
       <div class="txt-body">
         <slot>
-          <h2 class="txt-title">{{ txtTitle }}</h2>
+          <h1 class="txt-title">{{ txtTitle }}</h1>
           <p v-if="txtSub" class="txt-sub">{{ txtSub }}</p>
           <p v-if="txtHint" class="txt-hint">{{ txtHint }}</p>
         </slot>
@@ -162,7 +162,9 @@ defineExpose({ stageRef, txtWidth });
   position: relative; /* 收起/展开按钮以此为锚点 */
   display: flex; /* 横向：左 canvas，右文案 */
   align-items: stretch;
+  /* dvh：移动端按实际可视高度铺满，避免地址栏高差导致的整页滚动（vh 为旧浏览器兜底） */
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 

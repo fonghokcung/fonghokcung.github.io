@@ -1,7 +1,7 @@
 <template>
   <ThreeLayout class="FlowingWater__vue" ref="layoutRef" @stage-resize="onResize">
     <template #default>
-      <h2 class="txt-title">流动水波</h2>
+      <h1 class="txt-title">流动水波</h1>
       <p class="txt-sub">
         此页面的水波是「法线假象」：几何上是一块完全平坦的平面，没有任何顶点起伏。
         起伏来自一张噪声烘焙成的法线贴图——可以理解为先用 Perlin

@@ -1,6 +1,10 @@
 <template>
   <!-- 首页不用 ThreeLayout：无 txt 面板，canvas 全屏铺满 -->
   <div ref="stageRef" class="stage HomeView__vue" v-loading="homeLoading">
+    <!-- 页面主标题：视觉隐藏，供搜索引擎 / 屏幕阅读器识别本页主题 -->
+    <h1 class="sr-only">
+      房学聪（Fong Hokcung）· 前端开发工程师 · Three.js / WebGL 作品集
+    </h1>
     <p v-if="loadError" class="loading-tip error">{{ loadError }}</p>
 
     <!-- 打字机自我介绍：偏左 20% / 偏上 15%，逐句打出 → 整句消失 → 下一句 -->
@@ -691,6 +695,7 @@ onBeforeUnmount(() => {
   position: relative;
   width: 100vw;
   height: 100vh;
+  height: 100dvh; /* 移动端按实际可视高度，避免整页滚动条 */
   overflow: hidden;
 }
 

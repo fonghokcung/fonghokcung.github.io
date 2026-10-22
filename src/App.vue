@@ -82,7 +82,9 @@ watch(isMenuOpen, (open) => {
 
 .App__vue {
   display: flex;
+  /* dvh：移动端按实际可视高度，避免地址栏高差撑出整页滚动（vh 为旧浏览器兜底） */
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 /* ---- 抽屉菜单（模仿 github.com 顶部导航交互）----
@@ -167,6 +169,7 @@ watch(isMenuOpen, (open) => {
   background: var(--color-bg-dark);
   color: white;
   height: 100vh;
+  height: 100dvh;
   overflow: auto;
   transform: translateX(-100%);
   transition: transform 0.3s ease;

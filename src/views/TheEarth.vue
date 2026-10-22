@@ -6,7 +6,7 @@
   >
     <!-- 文案面板：显式指定默认 slot 自定义（替代 txt-title/sub/hint props） -->
     <template #default>
-      <h2 class="txt-title">地球</h2>
+      <h1 class="txt-title">地球</h1>
       <p class="txt-sub">
         复刻 threejs.org/manual/#indexed-textures：索引贴图 +
         调色板纹理（点击国家蓝色高亮）+ GPU 拾取 + 国名标签投影。

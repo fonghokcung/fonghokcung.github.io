@@ -1,9 +1,76 @@
 <!doctype html>
-<html lang="">
+<html lang="zh-CN">
   <head>
-    <title>xc | Fong Hokcung</title>
     <meta charset="UTF-8" />
+    <title>xc | Fong Hokcung</title>
+
+    <!-- ---- 基础 SEO ---- -->
+    <meta
+      name="description"
+      content="房学聪（Fong Hokcung）的前端作品集：十年经验前端开发工程师，专注 Web 视觉化与 Three.js / WebGL。含 GPGPU 鸟群、车间数字孪生、地球可视化、粒子火焰等互动场景。"
+    />
+    <meta name="author" content="房学聪（Fong Hokcung）" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#0a0c0a" />
+    <link rel="canonical" href="https://fonghokcung.github.io/" />
+
+    <!-- ---- 社交分享卡片 ---- -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Fong Hokcung" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:title" content="xc | Fong Hokcung" />
+    <meta
+      property="og:description"
+      content="房学聪（Fong Hokcung）的前端作品集：十年经验前端开发工程师，专注 Web 视觉化与 Three.js / WebGL。含 GPGPU 鸟群、车间数字孪生、地球可视化、粒子火焰等互动场景。"
+    />
+    <meta property="og:url" content="https://fonghokcung.github.io/" />
+    <meta
+      property="og:image"
+      content="https://fonghokcung.github.io/logo.png"
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="xc | Fong Hokcung" />
+    <meta
+      name="twitter:description"
+      content="十年经验前端开发工程师，专注 Web 视觉化与 Three.js / WebGL 互动场景开发。"
+    />
+
+    <!-- ---- 结构化数据：站点 + 作者 ---- -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://fonghokcung.github.io/#website",
+            "url": "https://fonghokcung.github.io/",
+            "name": "Fong Hokcung",
+            "inLanguage": "zh-CN",
+            "author": { "@id": "https://fonghokcung.github.io/#person" }
+          },
+          {
+            "@type": "Person",
+            "@id": "https://fonghokcung.github.io/#person",
+            "name": "房学聪",
+            "alternateName": "Fong Hokcung",
+            "url": "https://fonghokcung.github.io/",
+            "jobTitle": "前端开发工程师",
+            "knowsAbout": [
+              "Vue.js",
+              "Three.js",
+              "WebGL",
+              "前端性能优化",
+              "数据可视化"
+            ],
+            "sameAs": ["https://github.com/fonghokcung"]
+          }
+        ]
+      }
+    </script>
+
+    <!-- ---- 资源 ---- -->
     <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
@@ -33,6 +100,26 @@
   </head>
   <body>
     <div id="app"></div>
+    <!-- 无 JS 环境（爬虫/禁用脚本）兜底：给出一段站点说明与页面导航 -->
+    <noscript>
+      <h1>房学聪（Fong Hokcung）· 前端开发工程师</h1>
+      <p>
+        十年经验前端开发工程师，专注 Web 视觉化与 Three.js / WebGL
+        互动场景开发，擅长打通 2D 业务页面与 3D 互动场景。
+      </p>
+      <ul>
+        <li><a href="/">首页 · GPGPU 鸟群</a></li>
+        <li><a href="/dtwin">车间数字孪生</a></li>
+        <li><a href="/earth">地球可视化</a></li>
+        <li><a href="/noise">噪声山脉</a></li>
+        <li><a href="/flowingwater">流动水波</a></li>
+        <li><a href="/lod">LOD 细节层次</a></li>
+        <li><a href="/tourbox">TourBox 三维模型</a></li>
+        <li><a href="/par">歌词粒子动画</a></li>
+        <li><a href="/fire">Quarks 火焰</a></li>
+        <li><a href="/manUal">WebGL / three.js 对比</a></li>
+      </ul>
+    </noscript>
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>

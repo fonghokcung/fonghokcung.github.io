@@ -1,7 +1,7 @@
 <template>
   <ThreeLayout class="NoiSe__vue" ref="layoutRef" @stage-resize="onResize">
     <template #default>
-      <h2 class="txt-title">噪声山脉</h2>
+      <h1 class="txt-title">噪声山脉</h1>
 
       <p class="txt-sub">
         柏林噪声（Perlin Noise） 是一种由 Ken Perlin 在 1983

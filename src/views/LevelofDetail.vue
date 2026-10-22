@@ -5,7 +5,7 @@
     @stage-resize="onResize"
   >
     <template #default>
-      <h2 class="txt-title">LOD · 细节层次</h2>
+      <h1 class="txt-title">LOD · 细节层次</h1>
       <p class="txt-sub">
         LOD（Level of Detail，细节层次）是 3D
         开发里最常用的性能优化手段：同一个物体准备好几份精度不同的模型，

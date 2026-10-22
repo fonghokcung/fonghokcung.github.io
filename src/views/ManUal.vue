@@ -42,6 +42,7 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr;
   grid-template-rows: 1fr 1fr;
   height: 100vh;
+  height: 100dvh;
   .WebGL,
   .threejs {
     position: relative;

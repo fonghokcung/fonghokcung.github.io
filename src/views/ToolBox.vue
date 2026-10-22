@@ -2,7 +2,7 @@
   <ThreeLayout class="ToolBox__vue" ref="layoutRef" @stage-resize="onResize">
     <!-- https://www.tourboxtech.com/jp/tourbox-elite-natural-series/ -->
     <template #default>
-      <h2 class="txt-title">TourBox</h2>
+      <h1 class="txt-title">TourBox</h1>
       <p class="txt-sub">
         <a
           class="tb-link"

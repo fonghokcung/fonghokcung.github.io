@@ -7,7 +7,7 @@
     @stage-resize="onResize"
   >
     <template #default>
-      <h2 class="txt-title">Quarks 火焰</h2>
+      <h1 class="txt-title">Quarks 火焰</h1>
       <p class="txt-sub">
         <a
           class="qk-link"

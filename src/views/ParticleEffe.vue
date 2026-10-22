@@ -6,7 +6,7 @@
     @stage-resize="onResize"
   >
     <template #default>
-      <h2 class="txt-title">《光阴的歌》（东山少爷）</h2>
+      <h1 class="txt-title">《光阴的歌》（东山少爷）</h1>
       <!-- 歌词面板：直接复用 LINES（与画布同一数据源），溢出出竖向滚动条 -->
       <div class="txt-scroll">
         <p class="txt-sub">
@@ -512,8 +512,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .txt-scroll {
-  /* 限高触发滚动：减去面板上下 padding 与标题行高度（面板总高 100vh） */
+  /* 限高触发滚动：减去面板上下 padding 与标题行高度（面板总高 100dvh） */
   max-height: calc(100vh - 70px);
+  max-height: calc(100dvh - 70px);
   overflow-y: auto;
   padding-right: 6px; /* 滚动条与文字留些距离 */
 }
