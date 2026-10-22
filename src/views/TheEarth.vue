@@ -26,8 +26,9 @@
     <template #stage>
       <div ref="labelsRef" class="labels"></div>
 
-      <!-- 左上角：时钟按钮（点击切换自转）+ 日期选择器（默认当日，改日期即改光照） -->
-      <div class="top-left">
+      <!-- 角落控件：时钟按钮（点击切换自转）+ 日期选择器（默认当日，改日期即改光照）
+           角落定位走全局 .overlay-corner：移动端右上（避开汉堡按钮），桌面左上 -->
+      <div class="top-left overlay-corner">
         <button class="clock-btn" :class="{ spinning }" @click="toggleSpin">
           {{ nowText }}
         </button>
@@ -79,7 +80,8 @@
         </div>
       </div>
       <p v-else-if="!spinning" class="empty-tip">
-        点击国家查看详情 | Shift + 点击对比两国 | 点击时钟进入自转模式
+        点击国家查看详情<span class="cmp-hint"> | Shift + 点击对比两国</span> |
+        点击时钟进入自转模式
       </p>
     </template>
   </ThreeLayout>
@@ -505,6 +507,18 @@ function resetPalette() {
 }
 
 /* ===================== 国家 DOM 标签构建 ===================== */
+/* 初始机位距离（只对移动端差异化）：
+ * 桌面端维持原值 2.5；移动端竖屏 aspect < 1，FOV 60° 下球会横向溢出屏幕，
+ * 按半宽公式 d = 半径×(1+边距) / (tan(fov/2)×aspect) 反推距离，
+ * 让球完整落在屏宽内、两侧各留约 8% 边距；并夹在 controls 可行范围 [1.2, 4] 内 */
+function initialCameraDistance() {
+  if (window.matchMedia('(min-width: 768px)').matches) return 2.5;
+  const rect = layoutRef.value?.stageRef?.getBoundingClientRect();
+  const aspect = rect && rect.height > 0 ? rect.width / rect.height : 0.6;
+  const fit = 1.16 / (Math.tan(THREE.MathUtils.degToRad(30)) * aspect);
+  return THREE.MathUtils.clamp(fit, 1.2, 4);
+}
+
 // country-info.json → 每个国家一个 DOM 标签（预创建，后续只改 transform/display）
 function buildLabels() {
   const lonFudge = Math.PI * 1.5;
@@ -535,7 +549,8 @@ function buildLabels() {
   }
 
   // 静止态初始机位：经度对准中国（约东经 105°），纬度放平；相机摆在该经度对面（+π）
-  const cameraDistance = 2.5;
+  // 距离：桌面 2.5；移动端按屏宽反推（见 initialCameraDistance），自转机位沿用同值
+  const cameraDistance = initialCameraDistance();
   const chinaLon = countryInfos.find((c) => c.name === 'China')?.lon ?? 105;
   const angle = THREE.MathUtils.degToRad(chinaLon) + lonFudge + Math.PI;
   camera.position.set(
@@ -809,20 +824,31 @@ onBeforeUnmount(() => {
     -1px 0 0 #000;
 }
 
-/* ---- 左上角容器 ---- */
+/* ---- 角落控件容器 ----
+ * 定位走全局 .overlay-corner（移动端右上 / 桌面左上），本类只负责内部排列。
+ * 移动端竖向排列且子项拉伸等宽（容器宽度由最宽的时钟文字决定），
+ * 时钟与滑块各占一行，不会因文字长短而宽窄不一 */
 .top-left {
-  position: absolute;
-  top: 10px;
-  left: 10px;
   z-index: 20;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   pointer-events: none; /* 容器本身不拦截，子元素各自处理 */
 }
 
 .top-left > * {
   pointer-events: auto;
+}
+
+/* 桌面端 ≥768px：容器回到左上角（随 .overlay-corner），横向单行、各自固有宽度 */
+@media (min-width: 768px) {
+  .top-left {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+  }
 }
 
 /* ---- 时钟按钮 ---- */
@@ -847,8 +873,11 @@ onBeforeUnmount(() => {
   border-color: #000;
 }
 
-/* ---- 日期选择器：与时钟按钮同风格 ---- */
+/* ---- 日期选择器：与时钟按钮同风格 ----
+ * 預設（移动端 <768px）：隐藏——小屏上原生日期控件占地大、作用有限，
+ * 改日期仍可用天数滑块；桌面端恢复显示 */
 .date-input {
+  display: none;
   height: 30px;
   padding: 0 6px;
   font-size: 12px;
@@ -861,6 +890,13 @@ onBeforeUnmount(() => {
   user-select: none;
 }
 
+/* 桌面端 ≥768px：恢复显示日期选择器 */
+@media (min-width: 768px) {
+  .date-input {
+    display: inline-block;
+  }
+}
+
 /* 日历图标反白（默认黑色在深色底上看不清） */
 .date-input::-webkit-calendar-picker-indicator {
   filter: invert(1);
@@ -869,7 +905,7 @@ onBeforeUnmount(() => {
 
 /* ---- 年内天数滑块 ---- */
 .day-slider {
-  width: 140px;
+  width: 100%; /* 移动端：列内拉伸，与上方时钟按钮等宽 */
   height: 30px;
   margin: 0;
   accent-color: var(--color-primary); /* 轨道/拇指用主题黄 */
@@ -877,11 +913,21 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-/* ---- 国家信息面板（1 国单列 / 2 国并排对比） ---- */
+/* 桌面端 ≥768px：横向单行，滑块用较宽行程 */
+@media (min-width: 768px) {
+  .day-slider {
+    width: 140px;
+  }
+}
+
+/* ---- 国家信息面板（1 国单列 / 2 国并排对比） ----
+ * 移动端：右上角被 .overlay-corner 的时钟 + 滑块两行控件占用，
+ * 面板下移到其下方（顶距 14 + 30 + 间距 8 + 30 + 间距 10 = 92）；
+ * 位置固定不随滑块出现/消失跳动 */
 .panel {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: 92px;
+  right: 14px;
   z-index: 20;
   width: 230px;
   padding: 8px 10px;
@@ -889,6 +935,14 @@ onBeforeUnmount(() => {
   border: 2px solid #333;
   border-radius: 6px;
   color: #222;
+}
+
+/* 桌面端 ≥768px：控件在左上角，面板回到右上角原始位置 */
+@media (min-width: 768px) {
+  .panel {
+    top: 10px;
+    right: 10px;
+  }
 }
 
 /* 对比态：面板放宽到两列 */
@@ -987,5 +1041,18 @@ onBeforeUnmount(() => {
   border-radius: 4px;
   white-space: nowrap;
   pointer-events: none;
+}
+
+/* 「Shift + 点击对比两国」分段：預設（移动端 <768px）隐藏——触屏无修饰键，
+ * 两国对比仅桌面端可用；其余两条提示移动端照常显示 */
+.empty-tip .cmp-hint {
+  display: none;
+}
+
+/* 桌面端 ≥768px：恢复行内显示 */
+@media (min-width: 768px) {
+  .empty-tip .cmp-hint {
+    display: inline;
+  }
 }
 </style>

@@ -44,7 +44,7 @@
     </template>
 
     <template #stage>
-      <button class="overview-btn" @click="toggleMode">
+      <button class="overview-btn overlay-corner" @click="toggleMode">
         {{ isFlying ? '全貌' : '返回飞行' }}
       </button>
     </template>
@@ -338,9 +338,6 @@ onBeforeUnmount(() => {
   font-style: italic;
 }
 .overview-btn {
-  position: absolute;
-  top: 14px;
-  left: 14px;
   z-index: 10;
   padding: 7px 16px;
   font-size: 13px;

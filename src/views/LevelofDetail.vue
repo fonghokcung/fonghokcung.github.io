@@ -1,5 +1,9 @@
 <template>
-  <ThreeLayout class="LevelofDetail__vue" ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout
+    class="LevelofDetail__vue"
+    ref="layoutRef"
+    @stage-resize="onResize"
+  >
     <template #default>
       <h2 class="txt-title">LOD · 细节层次</h2>
       <p class="txt-sub">
@@ -27,7 +31,7 @@
     </template>
 
     <template #stage>
-      <div class="hud">
+      <div class="hud overlay-corner">
         <div class="hud__row">
           <span class="hud__label">总三角面数</span>
           <span class="hud__value">{{ triCount.toLocaleString() }}</span>
@@ -268,11 +272,9 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* 左上角 HUD：面数 / 距离 / 层级图例 / 按钮 */
+/* HUD：面数 / 距离 / 层级图例 / 按钮
+ * 角落定位走全局 .overlay-corner（移动端右上 / 桌面左上） */
 .hud {
-  position: absolute;
-  top: 14px;
-  left: 14px;
   z-index: 10;
   min-width: 172px;
   padding: 10px 12px;
@@ -282,6 +284,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
   backdrop-filter: blur(4px);
 }
+
 .hud__row {
   display: flex;
   align-items: baseline;

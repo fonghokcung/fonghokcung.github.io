@@ -1,5 +1,6 @@
 <template>
-  <ThreeLayout class="DTwin__vue"
+  <ThreeLayout
+    class="DTwin__vue"
     ref="layoutRef"
     txt-title="车间数字孪生"
     txt-sub="俯视车间地面：500 台设备用单个 InstancedMesh 渲染（drawcall 目标 < 10），点击设备弹出实时数据面板，双击相机飞过去，支持楼层切换。"
@@ -167,6 +168,7 @@ onUnmounted(dispose);
 .floor-btns {
   display: flex;
   gap: 8px;
+  margin-left: auto; /* 預設（移动端 <768px）：metrics 隐藏后楼层按钮靠右 */
   pointer-events: auto;
 }
 
@@ -184,12 +186,25 @@ onUnmounted(dispose);
   background: var(--color-primary);
 }
 
+/* 預設（移动端 <768px）：渲染指标不显示，为小屏让位 */
 .metrics {
+  display: none;
   padding: 2px 7px;
   font-size: 10px;
   color: #fff;
   background: rgba(0, 0, 0, 0.55);
   border-radius: 4px;
+}
+
+/* 桌面端 ≥768px：恢复显示渲染指标，楼层按钮回到左侧 */
+@media (min-width: 768px) {
+  .metrics {
+    display: block;
+  }
+
+  .floor-btns {
+    margin-left: 0;
+  }
 }
 
 /* ---- 右侧数据面板 ---- */

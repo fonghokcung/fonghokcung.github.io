@@ -60,3 +60,24 @@ nav a {
 nav a.router-link-active {
   color: var(--color-primary);
 }
+
+/* ---- 舞台角落浮层统一锚点（移动优先）----
+ * 預設（移动端 <768px）：靠右上角——左上角被 App 的汉堡菜单按钮占据
+ * （fixed 定位，12px 起 44×44，右缘/下缘到 56px），任何浮层贴左上都会被盖住；
+ * 桌面端 ≥768px 无该按钮，回落左上角，保持原有布局。
+ *
+ * 用法：浮层加 class="overlay-corner"，自身不要再写 position/top/left/right。
+ * 例外：页面若已有右上角面板（如 TheEarth 的详情面板），该页浮层不要用本类，
+ * 改用「下移到汉堡按钮下方」的局部方案。 */
+.overlay-corner {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+}
+
+@media (min-width: 768px) {
+  .overlay-corner {
+    left: 14px;
+    right: auto;
+  }
+}

@@ -23,6 +23,10 @@
 
     <template #stage>
       <canvas ref="canvasRef" class="lyric-canvas"></canvas>
+      <!-- 顶部播放进度条：宽度由 rAF 每帧直接写 DOM（不触发组件重渲染） -->
+      <div class="lyric-progress">
+        <i ref="barRef" class="lyric-progress-bar"></i>
+      </div>
     </template>
   </ThreeLayout>
 </template>
@@ -38,13 +42,16 @@ import LINES from '@/assets/lyrics-guangyin.js'; // 歌词数据（展平行列�
 
 const layoutRef = ref(null);
 const canvasRef = ref(null);
+const barRef = ref(null); // 顶部进度条填充元素
 /* 字体未就绪时盖加载遮罩：避免首句以回退雅黑渲染后突然跳成文楷 */
 const fontLoading = ref(true);
 
-/* ===================== 排版 / 节奏参数 ===================== */
-const LINE_H = 72; // 行距（px）
-const STANZA_GAP = 48; // 段落额外间隙（px）
-const BASE_FS = 44; // 统一字号（px）
+/* ===================== 排版 / 节奏参数 =====================
+ * 字号/行距按「桌面舞台宽度」定的设计基准，运行时由 fitText() 按舞台实际宽度
+ * 等比缩放——移动端一屏能完整放下一行歌词（最长句也不溢出） */
+const DESIGN_FS = 44; // 基准字号（px）
+const DESIGN_LINE_H = 72; // 基准行距（px）
+const DESIGN_STANZA_GAP = 48; // 基准段落额外间隙（px）
 const LINE_TIME = 3.4; // 每句停留（秒）
 const LAST_HOLD = 4.6; // 末句停留（秒），结束后循环
 const EXIT_T = 4; // 化沙动画总时长（秒）
@@ -52,6 +59,12 @@ const FONT = '"LXGW WenKai", "Noto Sans SC", "Microsoft YaHei", sans-serif'; // 
 const FONT_WEIGHT = 700; // 文楷最粗为 Bold（900 会被浏览器仿粗合成）
 const COLOR_BASE = '#ffffff'; // 当前句：白色
 const COLOR_DIM = '#42b883'; // 其余句
+
+/* 运行时排版量（fitText 依舞台宽度更新；offsets 随字号重算） */
+let fontSize = DESIGN_FS;
+let lineH = DESIGN_LINE_H;
+let stanzaGap = DESIGN_STANZA_GAP;
+let offsets = [];
 
 /* ===================== 运行时状态 ===================== */
 let canvasEl = null;
@@ -232,7 +245,7 @@ function sampleTextPoints(text, fs) {
 // 开始化沙：当前句采样为沙粒（原句仍走普通绘制流程，无需快照）
 function startExit() {
   const text = LINES[current].text;
-  const { pts, w } = sampleTextPoints(text, BASE_FS);
+  const { pts, w } = sampleTextPoints(text, fontSize);
   // 每个出生点克隆 COPIES 粒沙，粒子总量 = 出生点数 × COPIES
   const srcN = pts.length / 2;
   const n = srcN * exitState.COPIES;
@@ -277,22 +290,23 @@ function startExit() {
   }
 }
 
-// 每行的目标滚动偏移：前序行高与段落间隙的累计值
-const offsets = [];
-{
+// 每行的目标滚动偏移：前序行高与段落间隙的累计值（字号变化时重算）
+function rebuildOffsets() {
+  offsets = [];
   let acc = 0;
   for (let i = 0; i < LINES.length; i++) {
     offsets.push(acc);
-    acc += LINE_H + (LINES[i + 1]?.gapBefore ? STANZA_GAP : 0);
+    acc += lineH + (LINES[i + 1]?.gapBefore ? stanzaGap : 0);
   }
 }
+rebuildOffsets();
 
 /* ===================== 绘制 ===================== */
 function draw() {
   ctx.clearRect(0, 0, viewW, viewH);
   const centerY = viewH / 2;
   const exiting = exitState.t < EXIT_T; // 化沙进行中
-  ctx.font = `${FONT_WEIGHT} ${BASE_FS}px ${FONT}`;
+  ctx.font = `${FONT_WEIGHT} ${fontSize}px ${FONT}`;
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
@@ -327,7 +341,7 @@ function draw() {
   // 化沙中的旧句保持黄色高亮（isWhite），新主句等化沙结束才点亮
   for (let i = 0; i < LINES.length; i++) {
     const y = offsets[i] - scrollCur + centerY;
-    if (y < -LINE_H * 2 || y > viewH + LINE_H * 2) continue; // 视口外跳过
+    if (y < -lineH * 2 || y > viewH + lineH * 2) continue; // 视口外跳过
     const dy = Math.abs(y - centerY);
     const focus = Math.max(0, 1 - dy / (viewH * 0.42));
     const isWhite = i === exitLine || (exitLine < 0 && i === current);
@@ -374,6 +388,16 @@ function advance() {
   current = current >= LINES.length - 1 ? 0 : current + 1;
 }
 
+// 进度条：整首播放位置 = （已过句数 + 当前句内已停留比例）/ 总句数。
+// 化沙期间 current 已切到下一句、计时冻结，用 exitLine + 1 保持停在该句上
+function updateProgressBar() {
+  if (!barRef.value) return;
+  const dur = current === LINES.length - 1 ? LAST_HOLD : LINE_TIME;
+  const pos =
+    exitLine >= 0 ? exitLine + 1 : current + Math.min(1, lineTime / dur);
+  barRef.value.style.width = `${((pos / LINES.length) * 100).toFixed(2)}%`;
+}
+
 function loop(now) {
   rafId = requestAnimationFrame(loop);
   if (disposed) return;
@@ -396,10 +420,29 @@ function loop(now) {
     if (lineTime >= dur) advance();
   }
   updateSnow(dt); // 飘雪不受化沙影响，一直下
+  updateProgressBar();
   draw();
 }
 
 /* ===================== 尺寸自适应 ===================== */
+/* 字号自适应：按最长一句的实测宽度反推字号（上限为设计基准），
+ * 行距/段落间隙同比缩放并重算滚动偏移。
+ * 移动端舞台窄 → 字号自动变小，一屏能完整放下一句歌词 */
+function fitText() {
+  ctx.font = `${FONT_WEIGHT} ${DESIGN_FS}px ${FONT}`;
+  let maxW = 0;
+  for (const line of LINES) {
+    const w = ctx.measureText(line.text).width;
+    if (w > maxW) maxW = w;
+  }
+  const scale = Math.min(1, (viewW * 0.9) / Math.max(maxW, 1));
+  fontSize = Math.max(16, Math.round(DESIGN_FS * scale));
+  const k = fontSize / DESIGN_FS;
+  lineH = Math.round(DESIGN_LINE_H * k);
+  stanzaGap = Math.round(DESIGN_STANZA_GAP * k);
+  rebuildOffsets();
+}
+
 function onResize() {
   if (!canvasEl || !ctx) return;
   const container = layoutRef.value?.stageRef;
@@ -414,6 +457,7 @@ function onResize() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   viewW = rect.width;
   viewH = rect.height;
+  fitText(); // 字体可用性/舞台宽度变化都需重新拟合字号
   if (!snow.length) initSnow(); // 首次拿到尺寸时生成雪片；后续仅随视口自然回收
 }
 
@@ -430,6 +474,7 @@ onMounted(() => {
     rafId = requestAnimationFrame(loop);
   };
   const reveal = () => {
+    onResize(); // 字体就绪后按真实字形重新拟合字号（回退字体度量会有偏差）
     const remain = 1000 - (performance.now() - mountedAt);
     if (remain > 0) {
       setTimeout(() => {
@@ -447,7 +492,8 @@ onMounted(() => {
   // 覆盖这 5 个字的切片，其余歌词/标题字符的切片要等画布或 DOM 真正用到才触发下载，
   // 遮罩撤掉后仍会看到雅黑→文楷的逐片跳变。把全部歌词 + 标题字符一次性喂给
   // load()，让所有相关切片就绪后再撤遮罩
-  const allText = LINES.map((l) => l.text).join('') + '《光阴的歌》（东山少爷）';
+  const allText =
+    LINES.map((l) => l.text).join('') + '《光阴的歌》（东山少爷）';
   if (document.fonts?.load) {
     const ready = document.fonts.load(probe, allText).catch(() => {});
     // CDN 卡死兜底：8s 后无论切片是否齐了都撤遮罩，避免永久转圈
@@ -475,12 +521,30 @@ onBeforeUnmount(() => {
   display: block;
 }
 .txt-gap {
-  margin-top: 24px; /* 段落间隙（与画布 STANZA_GAP 视觉对齐） */
+  margin-top: 24px; /* 段落间隙（与画布内段落间隙视觉对齐） */
 }
 .lyric-canvas {
   display: block;
   width: 100%;
   height: 100%;
   background: #0d1b2a;
+}
+/* 顶部进度条：贴舞台顶边，不拦截交互 */
+.lyric-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  z-index: 31;
+  pointer-events: none;
+}
+.lyric-progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--color2);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color2) 80%, transparent);
 }
 </style>

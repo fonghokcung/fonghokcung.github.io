@@ -12,8 +12,8 @@
           >TourBox</a
         >
         创意控制器——单手掌控剪辑/调色/绘画工作流的创意硬件。此处是它的数字样机：
-        4个模型并发加载（Promise.allSettled，单个失败降级占位不阻塞），
-        按包围盒归一缩放、底部对齐，主角居中、其余一列排开。
+        模型分两段加载——主角先行（独享带宽，就位即渲染），其余三个随后并发、全部就绪后依次插入右侧
+        （单个失败静默跳过）；按包围盒归一缩放、底部对齐，主角居中。移动端仅载入主角。
       </p>
       <p class="txt-sub">
         左键点选零件——高亮变黄、折线标注从标签端拉出；
@@ -64,14 +64,14 @@
       </div>
 
       <!-- 加载提示用小胶囊：工具页需边加载边观察场景，全屏遮罩反而碍事 -->
-      <div v-if="loading" class="loading">模型加载中…</div>
+      <div v-if="loading" class="loading overlay-corner">模型加载中…</div>
     </template>
   </ThreeLayout>
 </template>
 
 <script setup>
 /* ToolBox 演示页：GLB 资产陈列 + 零件交互演示。
- * 资产管线：Promise.allSettled 并发加载，单点失败降级不阻塞；
+ * 资产管线：主角（mesh版）先串行独享带宽、就位即渲染，其余卫星随后并发加载、就绪后按序插入；
  * 布局：包围盒归一缩放 → 底部对齐 → 等间距排开，主角居中于原点；
  * 拾取：14 键位白名单，左键高亮 + 折线标注，右键对焦所属模型；
  * 旋转演示：转盘/旋钮/滚轮绕世界自然轴自转（pivot Group + attach 实现），
@@ -83,6 +83,21 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
 import PART_NAME_MAP from '@/assets/tourbox.txt?raw'; // mesh名 → 官方零件名
+
+// public/tourbox 下的模型清单（中文文件名由 Vite 原样代理，无需编码处理）
+const MODELS = [
+  { file: 'tourbox_mesh.glb', label: 'mesh版' }, // 主角：零件未合并，可拾取（3.16MB）
+  { file: '白色.glb', label: '白色' }, // 3.68MB
+  { file: '蓝色.glb', label: '蓝色' }, // 3.68MB
+  { file: '黄色.glb', label: '黄色' }, // 3.68MB
+];
+
+// 移动端（<768px）只载入主角：屏幕小放不下陈列排开，还省下 3 个 glb
+// 的下载与渲染开销（断点与 ThreeLayout / README 的 768px 约定一致）
+const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+const LOAD_LIST = isDesktop
+  ? MODELS
+  : MODELS.filter((m) => m.label === 'mesh版');
 
 const layoutRef = ref(null);
 const loading = ref(true);
@@ -106,14 +121,6 @@ const label = ref({
 // 选中序号：每完成一次新拾取自增，绑在 path/circle 的 key 上强制重建
 // SVG 元素，从而重放「引线从标签端拉向零件」的 dash 动画
 let labelSeq = 0;
-
-// public/tourbox 下的模型清单（中文文件名由 Vite 原样代理，无需编码处理）
-const MODELS = [
-  { file: 'tourbox_mesh.glb', label: 'mesh版' }, // 主角：零件未合并，可拾取
-  { file: '白色.glb', label: '白色' },
-  { file: '蓝色.glb', label: '蓝色' },
-  { file: '黄色.glb', label: '黄色' },
-];
 
 let renderer = null;
 let scene = null;
@@ -194,7 +201,7 @@ function init() {
 // 彩色模型（尤其白色）会过曝到纯白。把它们的材质颜色整体调暗以还原
 // 细节；主角（mesh版）材质零改动，保持既定观感
 const SATELLITE_DIM = 0.44;
-// 单个 glb → { model, width, label }；失败 resolve null（allSettled 聚合，不阻塞其余）
+// 单个 glb → { model, width, label }；失败 resolve null（调用方静默跳过，不阻塞其余）
 function loadOne(item) {
   return new Promise((resolve) => {
     new GLTFLoader().load(
@@ -241,28 +248,85 @@ async function loadModels() {
   const root = new THREE.Group();
   scene.add(root);
 
-  // allSettled：全失败也不抛异常；fulfilled 里可能包着 resolve(null)（加载失败），
-  // 过滤后得到就位模型，顺序与 MODELS 一致
-  const settled = await Promise.allSettled(MODELS.map(loadOne));
-  if (disposed) return;
+  const GAP = 0.4;
+  let cursor = 0; // 卫星排布游标：主角就位时初始化为「主角右缘 + GAP」
 
-  const boxes = settled
-    .map((r) => (r.status === 'fulfilled' ? r.value : null))
-    .filter(Boolean);
-  for (const b of boxes) {
-    b.model.userData.gltfRoot = true; // 右键对焦时识别 glb 根的标记
-    root.add(b.model);
-  }
-
-  arrange(boxes);
-  // 模型就位，遮罩至少展示 300ms 后再撤
   const reveal = () => {
     loading.value = false;
     pickEnabled = true; // 模型就位，启用拾取
   };
-  const remain = MIN_LOADING_MS - (performance.now() - loadStartAt);
-  if (remain > 0) setTimeout(reveal, remain);
-  else reveal();
+  /* 遮罩至少展示 300ms：本地缓存秒开时转圈一闪而过反而刺眼 */
+  const revealSoon = () => {
+    const remain = MIN_LOADING_MS - (performance.now() - loadStartAt);
+    if (remain > 0) setTimeout(reveal, remain);
+    else reveal();
+  };
+
+  // 主角就位：X/Z 归零居中（底部已对齐 y=0）+ 相机取景 + 撤遮罩。
+  // 取景只依赖主角包围盒——卫星后插入不移动主角与相机（无 reflow）
+  function placeMain(b) {
+    b.model.userData.gltfRoot = true; // 右键对焦时识别 glb 根的标记
+    root.add(b.model);
+    const box = new THREE.Box3().setFromObject(b.model);
+    const center = box.getCenter(new THREE.Vector3());
+    // 卫星游标必须基于「居中前」的主角右缘（原版 arrange 语义）：
+    // 模型原点偏离几何中心时，居中会平移 −center.x，用居中后的 max.x
+    // 会让整排卫星左移 center.x（白色模型从只露一角变成大半可见）
+    const preMoveMaxX = box.max.x;
+    b.model.position.x -= center.x;
+    b.model.position.z -= center.z;
+    const finalBox = new THREE.Box3().setFromObject(b.model);
+    const c = finalBox.getCenter(new THREE.Vector3());
+    const size = finalBox.getSize(new THREE.Vector3());
+    const dist =
+      (Math.max(size.x, size.y) / 2 / Math.tan((Math.PI / 180) * 22.5)) * 2.8;
+    camera.position.set(c.x, c.y + size.y * 1.4, c.z + dist);
+    controls.target.copy(c);
+    controls.update();
+    cursor = preMoveMaxX + GAP; // 卫星从主角右缘排开
+    revealSoon();
+  }
+
+  // 卫星就位：追加在主角右侧队尾（主角与相机纹丝不动）
+  function placeSatellite(b) {
+    b.model.userData.gltfRoot = true;
+    root.add(b.model);
+    const bb = new THREE.Box3().setFromObject(b.model);
+    const w = bb.getSize(new THREE.Vector3()).x;
+    b.model.position.x += cursor - bb.min.x + 0.8;
+    cursor += w + GAP;
+  }
+
+  /* 加载策略（混合）：主角先串行、独享带宽——首屏只等主角（3.16MB），
+   * 若 4 个并发均分带宽，主角要等 ~89% 总流量才就位；
+   * 主角就位后其余卫星并发下载，全部结束后按清单顺序依次插入。
+   * 用 allSettled 而非逐项 then：三者等大、同时发出、带宽均分，
+   * 完成时间本就几乎一致，等最慢的一个不损失观感，换来数组天然保序。
+   * 主角降级语义：首项失败则继续串行尝试下一项，首个成功者顶替当主角 */
+  let mainIndex = -1;
+  for (let i = 0; i < LOAD_LIST.length; i++) {
+    const b = await loadOne(LOAD_LIST[i]);
+    if (disposed) return;
+    if (b) {
+      mainIndex = i;
+      placeMain(b);
+      break;
+    }
+  }
+
+  // 全部失败：撤遮罩露出空场景（无拾取目标，开着无害）
+  if (mainIndex < 0) {
+    revealSoon();
+    return;
+  }
+
+  // 其余卫星并发：loadOne 不会 reject（失败也 resolve(null)），故 fulfilled 才插入
+  const rest = LOAD_LIST.slice(mainIndex + 1);
+  const settled = await Promise.allSettled(rest.map(loadOne));
+  if (disposed) return;
+  for (const r of settled) {
+    if (r.status === 'fulfilled' && r.value) placeSatellite(r.value);
+  }
 }
 
 /* ===================== 拾取与选中 ===================== */
@@ -492,7 +556,7 @@ function flyToPart(mesh) {
   if (box.isEmpty()) return false;
   const size = box.getSize(new THREE.Vector3());
   const target = box.getCenter(new THREE.Vector3());
-  // 视距 = 包围球半径 / sin(半FOV)，与 arrange 的取景逻辑同源（系数 1.15 留边）
+  // 视距 = 包围球半径 / sin(半FOV)，与 placeMain 的取景逻辑同源（系数 1.15 留边）
   const radius = size.length() / 2;
   const dist = (radius / Math.sin((Math.PI / 180) * 22.5)) * 1.15;
   const pos = camera.position.clone().sub(target).setLength(dist).add(target);
@@ -692,39 +756,6 @@ function seededRand(str) {
   };
 }
 
-// 水平等间距排开：mesh版居中于原点并作为取景目标，其余模型在其右侧排开
-function arrange(boxes) {
-  if (!boxes.length) return; // 全部加载失败：维持默认相机位，避免除零得 0 视距
-  const GAP = 0.4;
-  const main = boxes.find((b) => b.label === 'mesh版') || boxes[0]; // 主角模型
-
-  // 主角居中：X/Z 归零（主角中心 = 世界原点），底部已对齐 y=0
-  const mainBox = new THREE.Box3().setFromObject(main.model);
-  const mainCenter = mainBox.getCenter(new THREE.Vector3());
-  main.model.position.x -= mainCenter.x;
-  main.model.position.z -= mainCenter.z;
-
-  // 其余模型从主角右侧依次排开
-  let cursor = mainBox.max.x + GAP;
-  for (const b of boxes) {
-    if (b === main) continue;
-    const bb = new THREE.Box3().setFromObject(b.model);
-    const w = bb.getSize(new THREE.Vector3()).x;
-    b.model.position.x += cursor - bb.min.x + 0.8;
-    cursor += w + GAP;
-  }
-
-  // 相机取景：以主角中心为 target，视距按主角尺寸定
-  const finalBox = new THREE.Box3().setFromObject(main.model);
-  const center = finalBox.getCenter(new THREE.Vector3());
-  const size = finalBox.getSize(new THREE.Vector3());
-  const dist =
-    (Math.max(size.x, size.y) / 2 / Math.tan((Math.PI / 180) * 22.5)) * 2.8;
-  camera.position.set(center.x, center.y + size.y * 1.4, center.z + dist);
-  controls.target.copy(center);
-  controls.update();
-}
-
 /* ===================== 渲染循环 ===================== */
 // 相机漫游（autoOrbit 开关，默认关闭）：水平角匀速公转 + 俯仰/视距正弦
 // 振荡，随机相位让每次轨迹不同；用户拖拽期间暂停，松手 2s 以新位姿
@@ -914,11 +945,9 @@ onBeforeUnmount(() => {
 .tb-link:hover {
   text-decoration: underline;
 }
-/* 加载提示小胶囊：左上角浮层，不遮场景（工具页需边加载边观察布局/光照） */
+/* 加载提示小胶囊：角落浮层，不遮场景（工具页需边加载边观察布局/光照）。
+ * 角落定位走全局 .overlay-corner（移动端右上 / 桌面左上） */
 .loading {
-  position: absolute;
-  top: 14px;
-  left: 14px;
   z-index: 10;
   padding: 8px 14px;
   border-radius: 8px;

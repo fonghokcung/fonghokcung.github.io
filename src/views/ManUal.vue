@@ -36,9 +36,11 @@ onBeforeUnmount(() => {
   </div>
 </template>
 <style scoped>
+/* 預設（移动端 <768px）：上下两行，两个 canvas 各占半屏高 */
 .ManUal__vue {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr 1fr;
   height: 100vh;
   .WebGL,
   .threejs {
@@ -54,6 +56,14 @@ onBeforeUnmount(() => {
       height: 100%;
       background: var(--color3);
     }
+  }
+}
+
+/* 桌面端 ≥768px：左右两栏并排对比 */
+@media (min-width: 768px) {
+  .ManUal__vue {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
   }
 }
 </style>
