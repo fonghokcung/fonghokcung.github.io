@@ -47,6 +47,8 @@
       <button class="overview-btn overlay-corner" @click="toggleMode">
         {{ isFlying ? '全貌' : '返回飞行' }}
       </button>
+      <!-- 渲染失败兜底：真机（移动 GPU）上 shader 链接失败/上下文丢失时给出可读原因 -->
+      <p v-if="stageError" class="stage-error">{{ stageError }}</p>
     </template>
   </ThreeLayout>
 </template>
@@ -57,6 +59,7 @@
  * 两种模式：飞行（默认）/ 全貌（OrbitControls 俯瞰，路径曲线同步显隐） */
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
+import Stats from 'stats.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
@@ -66,12 +69,13 @@ import {
   buildFlightPath,
   CLEARANCE,
   FlyCamera,
-  PERM,
+  PERM_BASE,
   terrainHeight,
 } from '@/views/noise/fly-camera';
 
 const layoutRef = ref(null);
 const isFlying = ref(true); // true=飞行模式（默认）；false=全貌模式
+const stageError = ref(''); // 渲染失败原因（shader 链接失败 / 上下文丢失）
 
 let renderer = null;
 let scene = null;
@@ -81,6 +85,7 @@ let flyCamera = null; // 路径飞行控制器
 let controls = null; // 全貌模式的轨道控制器
 let terrain = null; // 地形 mesh
 let pathHelpers = []; // 路径可视化对象（仅全貌模式可见）
+let stats = null; // stats.js FPS 面板
 let rafId = 0;
 let disposed = false;
 
@@ -92,6 +97,25 @@ function init() {
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   container.appendChild(renderer.domElement);
+
+  // stats.js：右下角 FPS 面板（项目约定，位置由 base.css 的 .stats-panel 统一）
+  stats = new Stats();
+  stats.showPanel(0);
+  stats.dom.className = 'stats-panel';
+  container.appendChild(stats.dom);
+
+  // 移动 GPU 若编译/链接失败，页面只会是空白：把原因显示出来便于定位
+  renderer.debug.onShaderError = (gl, program, vs, fs) => {
+    stageError.value = `WebGL 着色器错误：${
+      gl.getProgramInfoLog(program) ||
+      gl.getShaderInfoLog(vs) ||
+      gl.getShaderInfoLog(fs)
+    }`;
+  };
+  renderer.domElement.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault(); // 允许后续恢复；先告知用户
+    stageError.value = 'WebGL 上下文丢失（GPU 资源不足或被系统回收）';
+  });
 
   scene = new THREE.Scene();
   // 雾色 = 天空色：远处地形淡入天空，看不到地形边界
@@ -120,7 +144,7 @@ function init() {
     wireframe: true, // 线框模式；恢复实体着色删掉本行
     uniforms: {
       u_time: { value: 0 },
-      uPerm: { value: PERM }, // 置换表：CPU/GPU 共享，地形逐点一致
+      uPerm: { value: PERM_BASE }, // 置换表：CPU/GPU 共享，地形逐点一致（GPU 侧 256 项）
       uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.6).normalize() },
       uFogColor: { value: skyColor },
       uFogNear: { value: 3.2 },
@@ -293,7 +317,9 @@ function startLoop() {
     timer.update();
     const dt = Math.min(timer.getDelta(), 0.05); // 切后台再回来防爆发
     if (isFlying.value) flyCamera?.update(dt);
+    stats.begin();
     renderer.render(scene, camera);
+    stats.end();
   }
   loop();
 }
@@ -317,9 +343,11 @@ function dispose() {
   terrain?.geometry.dispose();
   material?.dispose();
   controls?.dispose();
+  if (stats && stats.dom) stats.dom.remove();
   renderer?.dispose();
   renderer?.domElement.remove();
   renderer = null;
+  stats = null;
   scene = null;
   camera = null;
 }
@@ -350,5 +378,20 @@ onBeforeUnmount(() => {
 }
 .overview-btn:hover {
   background: rgba(40, 55, 75, 0.9);
+}
+.stage-error {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 20;
+  max-width: 90%;
+  padding: 10px 14px;
+  transform: translate(-50%, -50%);
+  color: #ffb4b4;
+  font-size: 12px;
+  line-height: 1.6;
+  word-break: break-all;
+  background: rgba(0, 0, 0, 0.78);
+  border-radius: 6px;
 }
 </style>

@@ -26,6 +26,11 @@ const permBase = (() => {
   }
   return arr;
 })();
+// GPU 只上传 256 项：512 个 int uniform 会占 128 个 vec4 slot，叠加 three.js
+// 内置矩阵 uniform 后超出低配移动 GPU 的顶点 uniform 上限（WebGL1 最低 128），
+// shader 链接失败 → 地形完全不渲染。shader 里用 mod 256 折回，与原 512 表等价
+export const PERM_BASE = new Int32Array(permBase);
+// CPU 侧保留 512 长表，查表不用取模（与 shader 的 idx256 语义一致）
 export const PERM = new Int32Array(512);
 for (let i = 0; i < 512; i++) PERM[i] = permBase[i & 255];
 

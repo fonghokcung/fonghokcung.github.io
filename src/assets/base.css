@@ -85,6 +85,16 @@ nav a.router-link-active {
   }
 }
 
+/* ---- stats.js FPS 面板统一锚点（右下角）----
+ * stats.js 构造时把 position:fixed;top:0;left:0 写进内联样式，
+ * 类选择器的优先级低于内联样式，故位置属性必须 !important 才能覆盖；
+ * 其余外观（宽高、透明度、z-index、点击切面板）保持库默认。
+ * 用法：stats.dom.className = 'stats-panel'，页面内不要再逐条写 style。 */
+.stats-panel {
+  position: absolute !important;
+  inset: auto 0 0 auto !important;
+}
+
 /* ---- 视觉隐藏文本（无障碍 + SEO）----
  * 供屏幕阅读器与搜索引擎读取、但不在画面上占位的标题/说明。
  * 首页无可见标题（画布 + 打字机文字），用本类补一个 H1 */

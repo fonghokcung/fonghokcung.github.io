@@ -230,14 +230,10 @@ export function createWorkshopScene(container, hooks = {}) {
     // 用户手动拖动时终止相机飞行动画，避免和人抢相机
     controls.addEventListener('start', onControlsStart);
 
-    // stats.js：右下角 FPS 面板
+    // stats.js：右下角 FPS 面板（位置由 base.css 的 .stats-panel 统一）
     stats = new Stats();
     stats.showPanel(0);
-    stats.dom.style.position = 'absolute';
-    stats.dom.style.left = 'auto';
-    stats.dom.style.right = '0';
-    stats.dom.style.top = 'auto';
-    stats.dom.style.bottom = '0';
+    stats.dom.className = 'stats-panel';
     container.appendChild(stats.dom);
 
     raycaster = new THREE.Raycaster();

@@ -436,14 +436,10 @@ function init(birdGeometry) {
   initComputeRenderer();
   initBirds(birdGeometry);
 
-  // stats.js：右下角 FPS 面板（项目约定）
+  // stats.js：右下角 FPS 面板（项目约定，位置由 base.css 的 .stats-panel 统一）
   stats = new Stats();
   stats.showPanel(0);
-  stats.dom.style.position = 'absolute';
-  stats.dom.style.left = 'auto';
-  stats.dom.style.right = '0';
-  stats.dom.style.top = 'auto';
-  stats.dom.style.bottom = '0';
+  stats.dom.className = 'stats-panel';
   container.appendChild(stats.dom);
 
   // 交互：鼠标移动 = 鸟群的"猎物"在动

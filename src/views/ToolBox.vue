@@ -63,8 +63,8 @@
         >
       </div>
 
-      <!-- 加载提示用小胶囊：工具页需边加载边观察场景，全屏遮罩反而碍事 -->
-      <div v-if="loading" class="loading overlay-corner">模型加载中…</div>
+      <!-- 加载提示居中显示（移动端/桌面端一致）：一眼可见，又不用铺满遮罩 -->
+      <div v-if="loading" class="loading">模型加载中…</div>
     </template>
   </ThreeLayout>
 </template>
@@ -540,25 +540,31 @@ function gltfRootOf(mesh) {
 }
 
 /* ---- 相机飞近：远观时点击零件，相机平滑飞到该模型跟前 ---- */
-const FLY_FAR = 5; // 相机到 controls.target 距离超过此值视为「太远」
 const FLY_SPEED = 9; // 指数插值速率（1/s）：越大飞得越快、停下越急
 let flyGoal = null; // { target: Vector3, pos: Vector3 } 飞行终点，到达即清空
 let pendingReveal = null; // 飞行期间挂起的呈现回调（旋转/按压/标注），落地后执行
 // 计算并记录飞行终点：target = 所选模型包围盒中心，
 // 相机终点 = 沿当前视线方向退到「恰好框住模型」的视距处。
-// 返回是否真的起飞（太近忽略 = false）
+// 返回是否真的起飞（已在取景距离内 = false）
 function flyToPart(mesh) {
-  // 太近则忽略：相机已在模型跟前（target 距离 < FLY_FAR）时不动，
-  // 避免每次点击都抢走用户的取景
-  if (camera.position.distanceTo(controls.target) < FLY_FAR) return false;
   const root = gltfRootOf(mesh);
   const box = new THREE.Box3().setFromObject(root);
   if (box.isEmpty()) return false;
   const size = box.getSize(new THREE.Vector3());
   const target = box.getCenter(new THREE.Vector3());
-  // 视距 = 包围球半径 / sin(半FOV)，与 placeMain 的取景逻辑同源（系数 1.15 留边）
+  // 视距 = 包围球半径 / sin(半FOV)，与 placeMain 的取景逻辑同源。
+  // 视野取纵/横半角中较小者：手机竖屏横向视野明显更窄（FOV 45 时横向半角
+  // 只有约 12°），只按纵向算会贴到屏幕左右边缘；窄屏再放大边距系数，
+  // 让整台样机完整入画、两侧各留一圈余量
+  const vHalf = THREE.MathUtils.degToRad(camera.fov / 2);
+  const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+  const margin = camera.aspect < 1 ? 1.35 : 1.15;
   const radius = size.length() / 2;
-  const dist = (radius / Math.sin((Math.PI / 180) * 22.5)) * 1.15;
+  const dist = (radius / Math.sin(Math.min(vHalf, hHalf))) * margin;
+  /* 最近触发阈值 = 取景距离本身（留 5% 余量）：相机已在取景距离内，
+   * 说明用户自己拉近了观察，不再抢视角。阈值随屏幕/模型自适应——
+   * 固定值（原 5）在手机上比取景距离还小，落点后每点一次都会重复起飞 */
+  if (camera.position.distanceTo(controls.target) <= dist * 1.05) return false;
   const pos = camera.position.clone().sub(target).setLength(dist).add(target);
   flyGoal = { target, pos };
   return true;
@@ -714,15 +720,22 @@ function updateLabel(mesh, text) {
   const elbowY = toY;
   // 文案在零件哪侧：随机点在零件左半屏则标签往左拉，反之往右
   const dir = toX < fromX ? -1 : 1;
+  /* 标签锚点安全区：手机端舞台窄，随机落点会贴着屏幕边缘，
+   * 文案（nowrap）就会有一截被左右边缘裁掉。按文案实测宽度反推锚点范围：
+   * 向左展开时锚点是文字右缘（translateX(-100%)），向右展开时是文字左缘 */
+  const PAD = 10;
+  const chipW = measureChipWidth(text);
+  const anchorMin = dir < 0 ? PAD + chipW : PAD;
+  const anchorMax = Math.max(anchorMin, lw - PAD - (dir < 0 ? 0 : chipW));
   // 肘点 X：与零件留出随机水平距离，产生长短不一的斜线段
   const elbowX = THREE.MathUtils.clamp(
     fromX + dir * (40 + rnd() * 80),
-    8,
-    lw - 8,
+    anchorMin,
+    anchorMax,
   );
   // 水平段长度随机
   const hLen = 32 + rnd() * 64;
-  const endX = THREE.MathUtils.clamp(elbowX + dir * hLen, 8, lw - 8);
+  const endX = THREE.MathUtils.clamp(elbowX + dir * hLen, anchorMin, anchorMax);
   labelSeq += 1; // 新拾取 → 新 key → SVG 元素重建 → dash 动画重放
   label.value = {
     visible: true,
@@ -737,6 +750,21 @@ function updateLabel(mesh, text) {
     chipY: elbowY,
     alignLeft: dir < 0, // true: 标签整体在锚点左侧
   };
+}
+
+// 标签文案宽度：canvas measureText（与 .label-chip 同字号/字重/字体）+ 左右 padding 20px
+// 只用于「锚点安全区」计算，几像素误差由 PAD 吸收
+let chipMeasureCtx = null;
+let chipMeasureFont = '';
+function measureChipWidth(text) {
+  if (!chipMeasureCtx) {
+    chipMeasureCtx = document.createElement('canvas').getContext('2d');
+  }
+  if (!chipMeasureFont) {
+    chipMeasureFont = `600 15px ${getComputedStyle(document.body).fontFamily}`;
+  }
+  chipMeasureCtx.font = chipMeasureFont;
+  return Math.ceil(chipMeasureCtx.measureText(text).width) + 20;
 }
 
 // 种子随机：FNV-1a 哈希 + mulberry32——同零件名恒定产出同一序列
@@ -945,9 +973,12 @@ onBeforeUnmount(() => {
 .tb-link:hover {
   text-decoration: underline;
 }
-/* 加载提示小胶囊：角落浮层，不遮场景（工具页需边加载边观察布局/光照）。
- * 角落定位走全局 .overlay-corner（移动端右上 / 桌面左上） */
+/* 加载提示小胶囊：居中浮层，移动端/桌面端同一位置（不铺满遮罩，加载中也能看到场景） */
 .loading {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   z-index: 10;
   padding: 8px 14px;
   border-radius: 8px;

@@ -1,5 +1,5 @@
 uniform float u_time;
-uniform int uPerm[512]; // 置换表（JS 侧 PERM 上传，两端逐位一致）
+uniform int uPerm[256]; // 置换表（JS 侧 PERM_BASE 上传，两端逐位一致）
 varying float vHeight; // 海拔 [0,1]
 varying vec3 vNormal; // 中心差分法线（世界近似）
 varying vec2 vPos; // 平面局部坐标（供片元等高线/调试）
@@ -9,6 +9,13 @@ varying vec3 vViewPos; // 相机空间位置（片元算距离雾用）
 // 与 fly-camera.js 的 JS perlin() 严格同构（同一张置换表、同一个梯度集、同一个归一系数）。
 // 四步：整数坐标折回 256 → fade 曲线 → p[p[X]+Y] 查四角梯度 → 双线性插值。
 // 注：GLSL ES 1.00 没有位运算符（&），用 mod 代替；没有 switch，用 if 链
+
+// 表索引折回 0..255：GPU 表只存 256 项（512 项会占满低配移动 GPU 的
+// 顶点 uniform 预算，shader 链接失败 → 整片地形不渲染），
+// mod 折回后的取值与原 512 长表完全一致
+int idx256(int i) {
+  return int(mod(float(i), 256.0));
+}
 
 int mod256(float n) {
   return int(mod(floor(n), 256.0)); // GLSL mod 对负数也给正值，与 JS ((%256)+256)%256 等价
@@ -42,10 +49,10 @@ float perlin(float Px, float Py) {
   float u = fade(x);
   float v = fade(y);
   // 3. 双层置换表查四角梯度哈希（aa=左下, ba=右下, ab=左上, bb=右上）
-  int aa = uPerm[uPerm[X] + Y];
-  int ab = uPerm[uPerm[X] + Y + 1];
-  int ba = uPerm[uPerm[X + 1] + Y];
-  int bb = uPerm[uPerm[X + 1] + Y + 1];
+  int aa = uPerm[idx256(uPerm[X] + Y)];
+  int ab = uPerm[idx256(uPerm[X] + Y + 1)];
+  int ba = uPerm[idx256(uPerm[X + 1] + Y)];
+  int bb = uPerm[idx256(uPerm[X + 1] + Y + 1)];
   // 4. 四角贡献 + 双线性插值：先 x 后 y
   float n00 = grad(aa, x, y);
   float n10 = grad(ba, x - 1.0, y);
