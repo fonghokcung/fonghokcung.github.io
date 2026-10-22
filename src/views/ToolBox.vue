@@ -80,17 +80,26 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
 import PART_NAME_MAP from '@/assets/tourbox.txt?raw'; // mesh名 → 官方零件名
 
 // public/tourbox 下的模型清单（中文文件名由 Vite 原样代理，无需编码处理）
 const MODELS = [
-  { file: 'tourbox_mesh.glb', label: 'mesh版' }, // 主角：零件未合并，可拾取（3.16MB）
-  { file: '白色.glb', label: '白色' }, // 3.68MB
-  { file: '蓝色.glb', label: '蓝色' }, // 3.68MB
-  { file: '黄色.glb', label: '黄色' }, // 3.68MB
+  { file: 'tourbox_mesh.glb', label: 'mesh版' }, // 主角：零件未合并，可拾取（Draco 压缩 285KB / 原 3.16MB）
+  { file: '白色.glb', label: '白色' }, // Draco 压缩后 441KB（原 3.68MB）
+  { file: '蓝色.glb', label: '蓝色' }, // Draco 压缩后 441KB（原 3.68MB）
+  { file: '黄色.glb', label: '黄色' }, // Draco 压缩后 441KB（原 3.68MB）
 ];
+
+// 四个 glb 都是 Draco 压缩版：共享一个带解码器的 loader（每个 GLTFLoader 各配一个
+// DRACOLoader 会重复起 worker）。主角虽然也是 Draco，但保留了独立的 mesh
+// 节点（零件未合并），拾取逻辑无需改动。
+// 解码器地址由 three 的 DRACOLoader 用 import.meta.url 内置，Vite 会随包发布，
+// 无需 setDecoderPath，也不用往 public 里拷解码器文件
+const dracoLoader = new DRACOLoader();
+const gltfLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
 
 // 移动端（<768px）只载入主角：屏幕小放不下陈列排开，还省下 3 个 glb
 // 的下载与渲染开销（断点与 ThreeLayout / README 的 768px 约定一致）
@@ -204,7 +213,7 @@ const SATELLITE_DIM = 0.44;
 // 单个 glb → { model, width, label }；失败 resolve null（调用方静默跳过，不阻塞其余）
 function loadOne(item) {
   return new Promise((resolve) => {
-    new GLTFLoader().load(
+    gltfLoader.load(
       `${import.meta.env.BASE_URL}tourbox/${item.file}`,
       (gltf) => {
         if (disposed) return resolve(null);
@@ -938,6 +947,7 @@ function dispose() {
   stopPress();
   pendingHlMesh = null; // 作废未兑现的延迟变黄
   cancelAnimationFrame(rafId);
+  dracoLoader.dispose(); // 终止解码 worker
   renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
   renderer?.domElement.removeEventListener('pointerup', onPointerUp);
   controls?.dispose();
