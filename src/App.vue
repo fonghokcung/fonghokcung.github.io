@@ -1,13 +1,50 @@
 <script setup>
+import { ref, watch } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
 
 const router = useRouter();
 const routes = router.options.routes;
+
+/* 移动端抽屉菜单开关 */
+const isMenuOpen = ref(false);
+
+/* 抽屉打开时锁定背景滚动 */
+watch(isMenuOpen, (open) => {
+  document.body.style.overflow = open ? 'hidden' : '';
+});
 </script>
 
 <template>
   <section class="App__vue">
-    <header class="theNav">
+    <!-- 移动端：悬空汉堡按钮，三线 / 叉切换 -->
+    <button
+      class="menu-toggle"
+      :class="{ 'is-open': isMenuOpen }"
+      type="button"
+      :aria-expanded="isMenuOpen"
+      aria-controls="mobile-drawer"
+      aria-label="菜单"
+      @click="isMenuOpen = !isMenuOpen"
+    >
+      <span class="menu-toggle-bar"></span>
+      <span class="menu-toggle-bar"></span>
+      <span class="menu-toggle-bar"></span>
+    </button>
+
+    <!-- 移动端：遮罩 -->
+    <Transition name="menu-fade">
+      <div
+        v-if="isMenuOpen"
+        class="menu-overlay"
+        @click="isMenuOpen = false"
+      ></div>
+    </Transition>
+
+    <header
+      id="mobile-drawer"
+      class="theNav"
+      :class="{ 'is-open': isMenuOpen }"
+    >
       <div class="wrapper">
         <nav>
           <RouterLink
@@ -15,6 +52,7 @@ const routes = router.options.routes;
             :key="route.name"
             :to="route.path"
             :aria-label="route.zh"
+            @click="isMenuOpen = false"
           >
             <!-- Home 项：站标 + 文字并排 -->
             <img
@@ -40,17 +78,102 @@ const routes = router.options.routes;
 </template>
 
 <style scoped>
+/* 預設：移動端 <768px，手機 */
+
 .App__vue {
   display: flex;
   min-height: 100vh;
 }
 
+/* ---- 抽屉菜单（模仿 github.com 顶部导航交互）----
+ * 悬空汉堡按钮固定左上角（三线，打开后动画变叉）；
+ * 侧栏默认移出屏幕左侧，打开时滑入；
+ * 半透明遮罩盖住内容，点击遮罩关闭
+ */
+.menu-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 101;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  width: 44px;
+  height: 44px;
+  padding: 10px;
+  border: 1px solid var(--color-border-indarkbg);
+  border-radius: 6px;
+  background: var(--color-bg-dark);
+  cursor: pointer;
+  transition: transform 0.3s ease;
+}
+
+/* 打开（X 状态）时按钮平移到抽屉内右上角，避免盖住第一项 HOME
+ * 172px = 抽屉宽 240 - 右边距 44 - 左偏移 12 */
+.menu-toggle.is-open {
+  transform: translateX(172px);
+}
+
+.menu-toggle-bar {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 2px;
+  background: white;
+  transition:
+    transform 0.3s ease,
+    opacity 0.2s ease;
+}
+
+/* 三线 → 叉 */
+.menu-toggle.is-open .menu-toggle-bar:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+
+.menu-toggle.is-open .menu-toggle-bar:nth-child(2) {
+  opacity: 0;
+}
+
+.menu-toggle.is-open .menu-toggle-bar:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* 遮罩淡入淡出 */
+.menu-fade-enter-active,
+.menu-fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.menu-fade-enter-from,
+.menu-fade-leave-to {
+  opacity: 0;
+}
+
+/* 侧栏：移动端为抽屉，默认移出屏幕左侧 */
 .theNav {
-  width: 200px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  width: 240px;
   background: var(--color-bg-dark);
   color: white;
   height: 100vh;
   overflow: auto;
+  transform: translateX(-100%);
+  transition: transform 0.3s ease;
+}
+
+.theNav.is-open {
+  transform: translateX(0);
 }
 
 nav {
@@ -136,5 +259,25 @@ nav a:hover .fresh-rolling-text-copy--incoming {
 .tag__RouterView {
   flex: 1;
   background: #fff;
+  width: 100%;
+}
+
+/* 桌面端 ≥768px：常驻侧栏，隐藏汉堡与遮罩 */
+@media (min-width: 768px) {
+  .menu-toggle,
+  .menu-overlay {
+    display: none;
+  }
+
+  .theNav {
+    position: static;
+    width: 200px;
+    transform: none;
+    transition: none;
+  }
+
+  .tag__RouterView {
+    width: auto;
+  }
 }
 </style>

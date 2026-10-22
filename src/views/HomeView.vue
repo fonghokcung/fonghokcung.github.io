@@ -714,11 +714,15 @@ onBeforeUnmount(() => {
   background: rgba(226, 72, 61, 0.85);
 }
 
-/* ---- 打字机自我介绍 ---- */
+/* ---- 打字机自我介绍 ----
+ * 預設（移动端 <768px）：左上角留出汉堡按钮区（top 15% 已在其下方），
+ * 左右 16px 近全宽铺开，字号缩小保证长句可读不溢出
+ */
 .intro {
   position: absolute;
-  left: 20%;
   top: 15%;
+  left: 30px;
+  right: 30px;
   max-width: 800px; /* 文本超过即换行 */
   z-index: 10;
   pointer-events: none; /* 纯展示，不挡鼠标驱鸟 */
@@ -727,8 +731,8 @@ onBeforeUnmount(() => {
 /* 背景做在行内元素上：高亮条只裹住已打出的文字，随打字逐渐变长 */
 .intro-text {
   display: inline;
-  font-size: 38px; /* 20px × 近两倍 */
-  line-height: 1.6;
+  font-size: 22px;
+  line-height: 1.8em;
   color: #fff;
   /* 高亮底直接垫在文字后面，box-decoration-break 保证换行时每行都断开补齐 */
   background: var(--color2);
@@ -743,5 +747,17 @@ onBeforeUnmount(() => {
   color: #fff;
   font-weight: bold;
   margin-left: 4px;
+}
+
+/* 桌面端 ≥768px：偏左 20% / 偏上 15%，大字号 */
+@media (min-width: 768px) {
+  .intro {
+    left: 20%;
+    right: auto;
+  }
+
+  .intro-text {
+    font-size: 38px;
+  }
 }
 </style>
