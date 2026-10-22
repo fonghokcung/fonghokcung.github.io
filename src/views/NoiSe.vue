@@ -85,6 +85,7 @@ let flyCamera = null; // 路径飞行控制器
 let controls = null; // 全貌模式的轨道控制器
 let terrain = null; // 地形 mesh
 let pathHelpers = []; // 路径可视化对象（仅全貌模式可见）
+let permTexture = null; // 置换表纹理（顶点着色器查表用）
 let stats = null; // stats.js FPS 面板
 let rafId = 0;
 let disposed = false;
@@ -138,13 +139,23 @@ function init() {
   flyCamera = new FlyCamera(camera, flightPath);
   loadHelicopter();
 
+  // 置换表纹理：256×1，R 通道存表项 0..255。
+  // 不能把表做成 uniform int[256]——每个 int 占 1 个 uniform 向量槽，
+  // 叠加 three.js 内置矩阵后会超过真机的 MAX_VERTEX_UNIFORM_VECTORS(256)，
+  // shader 链接失败导致地形完全不渲染；纹理采样不占 uniform 槽位。
+  // DataTexture 默认 NearestFilter / 无 mipmap / 无色彩空间转换，取值即原 byte
+  const permData = new Uint8Array(256 * 4);
+  for (let i = 0; i < 256; i++) permData[i * 4] = PERM_BASE[i];
+  permTexture = new THREE.DataTexture(permData, 256, 1);
+  permTexture.needsUpdate = true;
+
   material = new THREE.ShaderMaterial({
     vertexShader: noiseTerrainVert,
     fragmentShader: noiseTerrainFrag,
     wireframe: true, // 线框模式；恢复实体着色删掉本行
     uniforms: {
       u_time: { value: 0 },
-      uPerm: { value: PERM_BASE }, // 置换表：CPU/GPU 共享，地形逐点一致（GPU 侧 256 项）
+      uPermTex: { value: permTexture }, // 置换表：CPU/GPU 共享，地形逐点一致
       uSunDir: { value: new THREE.Vector3(0.5, 0.8, 0.6).normalize() },
       uFogColor: { value: skyColor },
       uFogNear: { value: 3.2 },
@@ -342,12 +353,14 @@ function dispose() {
   window.removeEventListener('resize', onResize);
   terrain?.geometry.dispose();
   material?.dispose();
+  permTexture?.dispose();
   controls?.dispose();
   if (stats && stats.dom) stats.dom.remove();
   renderer?.dispose();
   renderer?.domElement.remove();
   renderer = null;
   stats = null;
+  permTexture = null;
   scene = null;
   camera = null;
 }

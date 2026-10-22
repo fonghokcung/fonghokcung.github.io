@@ -86,8 +86,8 @@ const INTRO_SENTENCES = [
   '期待和团队一起打造优秀的视觉项目 ^v^',
 ];
 const INTRO_TYPE_MS = 90; // 打字间隔（ms/字）
-const INTRO_HOLD_MS = 3300; // 整句停留（末句见 INTRO_LAST_HOLD_MS）
-const INTRO_LAST_HOLD_MS = 6000; // 末句停留
+const INTRO_HOLD_MS = 5000; // 整句停留（末句见 INTRO_LAST_HOLD_MS）
+const INTRO_LAST_HOLD_MS = 9000; // 末句停留
 const INTRO_GAP_MS = 10000; // 末句消失后的空场，之后从头循环
 const displayText = ref('');
 const typing = ref(false); // 打字中：光标显示

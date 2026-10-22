@@ -1,5 +1,5 @@
 uniform float u_time;
-uniform int uPerm[256]; // 置换表（JS 侧 PERM_BASE 上传，两端逐位一致）
+uniform sampler2D uPermTex; // 置换表纹理（256×1，R 通道存表项 0..255）
 varying float vHeight; // 海拔 [0,1]
 varying vec3 vNormal; // 中心差分法线（世界近似）
 varying vec2 vPos; // 平面局部坐标（供片元等高线/调试）
@@ -10,11 +10,12 @@ varying vec3 vViewPos; // 相机空间位置（片元算距离雾用）
 // 四步：整数坐标折回 256 → fade 曲线 → p[p[X]+Y] 查四角梯度 → 双线性插值。
 // 注：GLSL ES 1.00 没有位运算符（&），用 mod 代替；没有 switch，用 if 链
 
-// 表索引折回 0..255：GPU 表只存 256 项（512 项会占满低配移动 GPU 的
-// 顶点 uniform 预算，shader 链接失败 → 整片地形不渲染），
-// mod 折回后的取值与原 512 长表完全一致
-int idx256(int i) {
-  return int(mod(float(i), 256.0));
+// 查表：索引折回 0..255 后取纹理像素中心（half-texel 偏移，避免线性过滤串色）。
+// 表项以 byte 存在 R 通道，采样值是 归一化 float，乘 255 取整即还原原值
+int permAt(int i) {
+  int idx = int(mod(float(i), 256.0));
+  vec2 uv = vec2((float(idx) + 0.5) / 256.0, 0.5);
+  return int(floor(texture2D(uPermTex, uv).r * 255.0 + 0.5));
 }
 
 int mod256(float n) {
@@ -49,10 +50,10 @@ float perlin(float Px, float Py) {
   float u = fade(x);
   float v = fade(y);
   // 3. 双层置换表查四角梯度哈希（aa=左下, ba=右下, ab=左上, bb=右上）
-  int aa = uPerm[idx256(uPerm[X] + Y)];
-  int ab = uPerm[idx256(uPerm[X] + Y + 1)];
-  int ba = uPerm[idx256(uPerm[X + 1] + Y)];
-  int bb = uPerm[idx256(uPerm[X + 1] + Y + 1)];
+  int aa = permAt(permAt(X) + Y);
+  int ab = permAt(permAt(X) + Y + 1);
+  int ba = permAt(permAt(X + 1) + Y);
+  int bb = permAt(permAt(X + 1) + Y + 1);
   // 4. 四角贡献 + 双线性插值：先 x 后 y
   float n00 = grad(aa, x, y);
   float n10 = grad(ba, x - 1.0, y);
