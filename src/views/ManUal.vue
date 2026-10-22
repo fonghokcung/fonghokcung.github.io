@@ -46,7 +46,7 @@ onBeforeUnmount(() => {
   .threejs {
     position: relative;
     display: block;
-    border: 10px solid var(--color-border);
+    border: 10px solid black;
     min-width: 0;
     min-height: 0;
     /* canvas 铺满父级：块级默认 inline 基线会留缝，显式 block + 100% 尺寸 */
