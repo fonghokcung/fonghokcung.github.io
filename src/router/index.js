@@ -4,8 +4,10 @@ import HomeView from '@/views/HomeView.vue';
 /* ===================== SEO：路由级描述 =====================
  * 站点标题统一为 SITE_TITLE（不随路由变化）；每条路由的 meta.desc 由下方
  * afterEach 写入 <head>：description、canonical、og:description、og:url。
- * 各页 title 保持一致，避免搜索结果显示成同一段摘要（描述仍然分页） */
-const SITE_TITLE = 'xc | Fong Hokcung';
+ * 各页 title 保持一致，避免搜索结果显示成同一段摘要（描述仍然分页）。
+ * 版本号从 package.json 读取（vite.config.js 注入 VITE_VERSION），
+ * 与 index.html 的 %VITE_VERSION% 同源，改 package.json 一处全部生效 */
+const SITE_TITLE = `xc | Fong Hokcung | v${import.meta.env.VITE_VERSION}`;
 const DEFAULT_DESC =
   '房学聪（Fong Hokcung）的前端作品集：十年经验前端开发工程师，专注 Web 视觉化与 Three.js / WebGL。含 GPGPU 鸟群、车间数字孪生、地球可视化、粒子火焰等互动场景。';
 
