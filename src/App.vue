@@ -8,6 +8,9 @@ const routes = router.options.routes;
 /* 移动端抽屉菜单开关 */
 const isMenuOpen = ref(false);
 
+/* 版本号：从 package.json 读取（vite.config.js 注入 VITE_VERSION），与 index.html 同源 */
+const APP_VERSION = import.meta.env.VITE_VERSION;
+
 /* 抽屉打开时锁定背景滚动 */
 watch(isMenuOpen, (open) => {
   document.body.style.overflow = open ? 'hidden' : '';
@@ -70,6 +73,7 @@ watch(isMenuOpen, (open) => {
             </span>
           </RouterLink>
         </nav>
+        <p class="nav-version">v{{ APP_VERSION }}</p>
       </div>
     </header>
 
@@ -179,11 +183,28 @@ watch(isMenuOpen, (open) => {
   transform: translateX(0);
 }
 
+/* wrapper 撑满侧栏高度，nav flex:1 把版本号推到底部 */
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 nav {
   display: flex;
   flex-direction: column;
   gap: 4px;
   padding: 24px 12px;
+  flex: 1;
+}
+
+/* 版本号：抽屉底部，暗色低对比，不抢导航注意力 */
+.nav-version {
+  margin: 0;
+  padding: 12px 28px 20px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  font-variant-numeric: tabular-nums;
 }
 
 nav a {
