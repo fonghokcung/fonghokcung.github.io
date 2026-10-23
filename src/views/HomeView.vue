@@ -43,6 +43,12 @@ import positionFrag from '@/shaders/birds/position.frag?raw';
 import velocityFrag from '@/shaders/birds/velocity.frag?raw';
 import injectDecl from '@/shaders/birds/inject-decl.vert?raw';
 import injectTransform from '@/shaders/birds/inject-transform.vert?raw';
+// 自我介绍文案抽离成纯文本数据：一行 = 一句，运行时按行拆开并去掉首尾空格
+import introText from './fonghokcung.txt?raw';
+const INTRO_SENTENCES = introText
+  .split('\n')
+  .map((line) => line.trim())
+  .filter(Boolean);
 
 const stageRef = ref(null);
 const homeLoading = ref(true);
@@ -76,15 +82,6 @@ function finishHomeLoading() {
  * 时间状态机：每帧对照 performance.now() 推进相位，不再用 setInterval/setTimeout
  * （定时器回调与渲染帧不同步，且后台节流会造成回帧爆发）。
  */
-const INTRO_SENTENCES = [
-  'Hello，我叫房学聪（粤拼：Fong Hokcung）',
-  '是有十年经验的前端开发工程师',
-  '熟悉前端架构、性能优化，掌握数据结构与常见算法',
-  '长期深耕 Web 视觉化领域，专研 Three.js、WebGL 相关开发',
-  '擅长打通 2D 业务页面与 3D 互动场景，从需求到上线独立完成整合开发',
-  '兼顾视觉效果、渲染效能与使用者体验',
-  '期待和团队一起打造优秀的视觉项目 ^v^',
-];
 const INTRO_TYPE_MS = 90; // 打字间隔（ms/字）
 const INTRO_HOLD_MS = 5000; // 整句停留（末句见 INTRO_LAST_HOLD_MS）
 const INTRO_LAST_HOLD_MS = 9000; // 末句停留
