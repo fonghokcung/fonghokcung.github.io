@@ -82,6 +82,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+// lil-gui：three 官方示例同款 GUI 控件（随 three 依赖分发，零额外安装）
+import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
 import PART_NAME_MAP from '@/assets/tourbox.txt?raw'; // mesh名 → 官方零件名
 
@@ -198,7 +201,19 @@ function init() {
   const SHOW_AXES = false; // 调试开关：是否显示坐标轴
   if (SHOW_AXES) scene.add(new THREE.AxesHelper(5));
 
+  // IBL 环境贴图：PBR 金属反射 / 清漆涂层 / 透射折射都靠它成像。
+  // 只有直射光（方向光）时这三个参数拉满也几乎看不出变化——金属度 1
+  // 只剩环境反射，没环境就是一坨黑。RoomEnvironment 是 three 内置的
+  // 摄影棚灯箱，PMREM 烘焙后挂 scene.environment，一次性开销。
+  // environmentIntensity 压到 0.3：全强度 IBL 叠加在既定 4 灯上会把
+  // 场景洗成一片亮灰（原观感靠明暗对比撑立体感），只留够反射成像的量
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.3;
+  pmrem.dispose(); // 烘完即弃（纹理由 GPU 持有，随 renderer 释放）
+
   loadModels();
+  initMatGui(container); // 选中材质 GUI（拾取零件后自动展开）
   onResize();
   startLoop();
   renderer.domElement.addEventListener('pointerdown', onPointerDown);
@@ -340,15 +355,124 @@ async function loadModels() {
 
 /* ===================== 拾取与选中 ===================== */
 let pickedMesh = null; // 当前选中零件（左键：高亮 + 标注）
-// 高亮零件：克隆材质后改主题黄（glb 内零件常共享材质实例，直接改会
-// 污染同材质的其他零件）。旋转类在拾取瞬间调用；按压键位延迟到按压
-// 动画结束后调用（见 startPress / 渲染循环），幂等
+
+/* ---- 选中材质 GUI（lil-gui，three 官方示例同款控件） ----
+ * 六个 PBR 参数：金属度 / 粗糙度 / 颜色 / 清漆 / 透射 / 透明度。清漆与透射是
+ * MeshPhysicalMaterial 的扩展槽位——全局选中材质克隆时即升级为 Physical
+ * 子类（copy 平移 Standard 参数，外观零变化）。dispose 时 destroy。
+ * 注意 lil-gui addColor 认字符串/整数，THREE.Color 用 getHexString 桥接 */
+let matGui = null; // lil-gui 实例
+let matProxy = null; // GUI 绑定的代理对象 { 颜色hex, 各标量参数 }
+const matControllers = []; // 需要随拾取换目标重灌的控制器
+// GUI 行为回调：proxy 值写回全局选中材质。清漆/透射从 0 变非 0（或反之）
+// 决定着色器是否编译 USE_CLEARCOAT / USE_TRANSMISSION 分支，跨界才置
+// needsUpdate，其余参数是纯 uniform 直改即可
+function applyMatProxy() {
+  const m = globalSelMat;
+  if (!m) return;
+  const extBefore = m.clearcoat > 0 || m.transmission > 0;
+  m.color.set(matProxy.颜色);
+  m.metalness = matProxy.金属度;
+  m.roughness = matProxy.粗糙度;
+  m.clearcoat = matProxy.清漆;
+  m.clearcoatRoughness = matProxy.粗糙度; // 清漆粗糙度跟随主粗糙度，少一个滑杆
+  m.transmission = matProxy.透射;
+  // 透明度：opacity < 1 必须开 transparent 才生效；回 1 时关掉，
+  // 避免透明渲染队列的排序副作用残留在不透明模型上。transparent
+  // 切换影响渲染队列归属与混合方程，保险起见同步 needsUpdate
+  const wasTransparent = m.transparent;
+  m.opacity = matProxy.透明度;
+  m.transparent = matProxy.透明度 < 1;
+  const extAfter = m.clearcoat > 0 || m.transmission > 0;
+  if (extBefore !== extAfter || wasTransparent !== m.transparent)
+    m.needsUpdate = true;
+}
+
+function initMatGui(container) {
+  matGui = new GUI({
+    title: '选中材质',
+    container, // 挂进舞台：随舞台布局/全屏一起走
+    width: 220,
+  });
+  matGui.domElement.classList.add('mat-gui');
+  matGui.close(); // 默认收起，拾取零件时自动展开
+
+  matProxy = {
+    颜色: '#fbd509', // 起点 = 主题黄（与 applyHighlight 一致）
+    金属度: 0,
+    粗糙度: 0.5,
+    清漆: 0,
+    透射: 0,
+    透明度: 1,
+  };
+  // track：所有控制器统一挂 onChange + 收集——syncMatGui 靠 matControllers
+  // 逐个 updateDisplay 刷新显示，漏掉任何一个都会出现「零件已换、控件仍
+  // 显示上一个零件的值」的错位
+  const track = (c) => {
+    c.onChange(applyMatProxy);
+    matControllers.push(c);
+  };
+  // 控件名用中文名直接挂代理对象（lil-gui 的 add/addColor 第二参是属性名，
+  // 同名即联动），省掉 name() 二次改名的样板
+  track(matGui.addColor(matProxy, '颜色'));
+  track(matGui.add(matProxy, '金属度', 0, 1, 0.01));
+  track(matGui.add(matProxy, '粗糙度', 0, 1, 0.01));
+  track(matGui.add(matProxy, '清漆', 0, 1, 0.01));
+  track(matGui.add(matProxy, '透射', 0, 1, 0.01));
+  track(matGui.add(matProxy, '透明度', 0, 1, 0.01));
+}
+
+// 材质 → GUI：拾取/变黄后把选中材质当前值灌进 proxy 并刷新控件显示
+function syncMatGui(mesh) {
+  const m = mesh.material;
+  if (!m || !matProxy) return;
+  matProxy.颜色 = '#' + m.color.getHexString();
+  matProxy.金属度 = m.metalness;
+  matProxy.粗糙度 = m.roughness;
+  matProxy.清漆 = m.clearcoat ?? 0;
+  matProxy.透射 = m.transmission ?? 0;
+  matProxy.透明度 = m.opacity;
+  for (const c of matControllers) c.updateDisplay();
+}
+
+// 高亮零件：给选中件换上「全局选中材质」。该材质进程内只有一份（首次
+// 从触发件的原材质克隆并升级为 MeshPhysicalMaterial——Standard 的子类，
+// copy 平移全部参数外观零变化，多出清漆/透射槽位），承载用户的全部
+// GUI 调整——零件 A 调蓝后选中 B，B 即以蓝色出现；再调成绿色，回选 A
+// 时 A 也是绿色（统一记忆）
+let globalSelMat = null; // 全局选中材质（所有零件共享的「高亮皮肤」）
 function applyHighlight(mesh) {
-  if (mesh.userData._origMat) return; // 已高亮
-  mesh.userData._origMat = mesh.material; // 备份原材质
-  mesh.material = mesh.material.clone();
-  mesh.material.color.set('#fbd509'); // 主题黄（base.css --color-primary）
-  if (mesh.material.emissive) mesh.material.emissive.set(0x664400);
+  if (!mesh.userData._origMat) mesh.userData._origMat = mesh.material;
+  if (!globalSelMat) {
+    const orig = mesh.userData._origMat;
+    if (orig.isMeshPhysicalMaterial) {
+      globalSelMat = orig.clone();
+    } else {
+      // 不能用 Physical.copy(Standard)——它会无条件拷贝 clearcoatNormalScale
+      // 等 Physical 独有的 Vector2 属性，Standard 上是 undefined，直接抛
+      // TypeError（「Cannot read properties of undefined (reading 'x')」），
+      // 高亮整条链路就此中断。改为：公共属性走基类 copy，Standard 参数逐项平移
+      globalSelMat = new THREE.MeshPhysicalMaterial();
+      THREE.Material.prototype.copy.call(globalSelMat, orig);
+      globalSelMat.color.copy(orig.color);
+      globalSelMat.roughness = orig.roughness ?? 1;
+      globalSelMat.metalness = orig.metalness ?? 0;
+      if (orig.emissive) globalSelMat.emissive.copy(orig.emissive);
+      globalSelMat.emissiveIntensity = orig.emissiveIntensity ?? 1;
+      globalSelMat.map = orig.map ?? null;
+      globalSelMat.normalMap = orig.normalMap ?? null;
+      if (orig.normalScale) globalSelMat.normalScale.copy(orig.normalScale);
+      globalSelMat.aoMap = orig.aoMap ?? null;
+      globalSelMat.transparent = orig.transparent;
+      globalSelMat.opacity = orig.opacity;
+      globalSelMat.flatShading = !!orig.flatShading;
+      globalSelMat.vertexColors = !!orig.vertexColors;
+    }
+    globalSelMat.color.set('#fbd509'); // 主题黄（base.css --color-primary）
+    if (globalSelMat.emissive) globalSelMat.emissive.set(0x664400);
+  }
+  mesh.material = globalSelMat;
+  if (mesh === pickedMesh) syncMatGui(mesh); // GUI 跟进当前选中材质值
 }
 
 /* ===================== 相机飞近 ===================== */
@@ -612,17 +736,17 @@ function pickAt(e, btn) {
   // 只认对照表里的 14 个零件；未命中（空白或非键位零件）一律按取消选中处理
   const isNamedPart = mesh && NAMED_PARTS.includes(hitName);
 
-  // 未命中已知零件：取消当前选中（恢复原材质），隐藏标注
+  // 未命中已知零件：取消当前选中，收起材质 GUI。只换回原材质显示，
+  // 高亮克隆件（含用户调整）留在 _hlMat 缓存——再次拾取原样恢复
   if (!isNamedPart) {
-    if (pickedMesh?.userData._origMat) {
+    if (pickedMesh?.userData._origMat)
       pickedMesh.material = pickedMesh.userData._origMat;
-      delete pickedMesh.userData._origMat;
-    }
     stopSpin();
     stopPress();
     pendingHlMesh = null; // 作废未兑现的延迟变黄
     pickedMesh = null;
     label.value.visible = false;
+    matGui?.close(); // GUI 随取消选中收起
     return;
   }
 
@@ -634,19 +758,23 @@ function pickAt(e, btn) {
     return;
   }
 
-  // 左键：高亮选中零件（材质是共享的，需克隆后整卡换色）
-  // 还原上一个选中件：_origMat 存在才说明已高亮（按压件可能尚未变色，
-  // 此时不能把 material 覆盖成 undefined）
+  // 左键：换上高亮材质展示选中。还原上一个选中件只换回原材质显示，
+  // 其高亮克隆件（含用户调整）留在缓存；按压件可能尚未换装，_origMat
+  // 存在才说明已换装（此时不能把 material 覆盖成 undefined）
   if (pickedMesh && pickedMesh !== mesh && pickedMesh.userData._origMat) {
     pickedMesh.material = pickedMesh.userData._origMat;
-    delete pickedMesh.userData._origMat;
   }
   if (spin?.mesh !== mesh) stopSpin(); // 换选：先还原上一个旋转件
   stopPress(); // 按键动画是一次性的，任何新拾取都先复位
   pickedMesh = mesh;
   const label_ = PARTS[hitName];
-  // 变黄时机：按压键位等按压动画结束才变色（见渲染循环），其余立即变黄
-  if (!PRESS_PARTS[label_]) applyHighlight(mesh);
+  // 材质 GUI：非按压件已变黄，灌入高亮材质值（颜色起点 = 主题黄）并展开；
+  // 按压件等按压结束变黄时由 applyHighlight 内灌入，这里也先展开
+  if (!PRESS_PARTS[label_]) {
+    applyHighlight(mesh);
+    syncMatGui(mesh);
+  }
+  matGui?.open();
   // 旋转/按压/标注的呈现：若相机需要飞近，挂起到落地后执行——
   // 先飞到位，再看到零件动起来、引线拉出，叙事顺序自然
   const reveal = () => {
@@ -937,17 +1065,18 @@ function onResize() {
 function dispose() {
   disposed = true;
   pickEnabled = false;
-  // 恢复被高亮零件的原材质（克隆材质随 dispose 一并释放）
-  if (pickedMesh?.userData._origMat) {
-    pickedMesh.material = pickedMesh.userData._origMat;
-    delete pickedMesh.userData._origMat;
-  }
+  // 高亮克隆件缓存与原材质备份随场景一并释放（dispose 遍历里统一处理），
+  // 此处只解除 pickedMesh 引用
   pickedMesh = null;
   stopSpin();
   stopPress();
   pendingHlMesh = null; // 作废未兑现的延迟变黄
   cancelAnimationFrame(rafId);
   dracoLoader.dispose(); // 终止解码 worker
+  matGui?.destroy(); // lil-gui 随组件卸载销毁
+  matGui = null;
+  matControllers.length = 0;
+  matProxy = null;
   renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
   renderer?.domElement.removeEventListener('pointerup', onPointerUp);
   controls?.dispose();
@@ -962,6 +1091,10 @@ function dispose() {
   renderer?.domElement.remove();
   renderer = null;
   scene = null;
+  // 全局选中材质可能不在任何 mesh 上（取消选中后仅存于缓存），traverse
+  // 够不着，需显式释放（重复 dispose 无害）
+  globalSelMat?.dispose();
+  globalSelMat = null;
 }
 
 onMounted(() => {
@@ -1062,5 +1195,23 @@ onBeforeUnmount(() => {
    零运行时开销，且永不随相机旋转/移动变化 */
 :deep(.stage) {
   background: linear-gradient(to bottom, #f2f4f7 0%, #dfe3e8 55%, #c3c9d2 100%);
+}
+
+/* ---- 选中材质 GUI（lil-gui）：挂在舞台容器内的右上角 ----
+ * lil-gui 的 DOM 是命令式 appendChild 的，不带本组件 scoped data-v 属性，
+ * 必须 :deep() 穿透（同 :deep(.stage) 的匹配原理）；CSS 变量直接在根元素
+ * 上重定义主题，免改 lil-gui 源样式 */
+:deep(.mat-gui) {
+  position: absolute !important; /* 传入 container 后脱离 autoPlace 流式定位 */
+  top: 14px;
+  right: 14px;
+  z-index: 20; /* 盖过标注层（5） */
+  --background-color: rgba(13, 27, 42, 0.88);
+  --text-color: #e6edf3;
+  --title-background-color: rgba(13, 27, 42, 0.95);
+  --widget-color: rgba(230, 237, 243, 0.12);
+  --hover-color: rgba(230, 237, 243, 0.2);
+  --focus-color: rgba(230, 237, 243, 0.28);
+  --font-size: 12px;
 }
 </style>
