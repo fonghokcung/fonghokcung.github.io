@@ -1,13 +1,13 @@
 /* color palette */
 :root {
   /* #FBD509 */
-  --color-primary: hsl(51 97% 51%);
-  --color2: hsl(212 100% 62%);
-  --color3: hsl(145 55% 56%);
-  --color-bg: hsl(60 12% 97%);
-  --color-bg-dark: hsl(120 16% 4%);
-  --color-border: hsl(60 3% 87%);
-  --color-border-indarkbg: hsl(130 6% 18%);
+  --color-primary: hsl(51 97% 51%); /* #fbd509 */
+  --color2: hsl(212 100% 62%); /* #3d98ff */
+  --color3: hsl(145 55% 56%); /* #51cd85 */
+  --color-bg: hsl(60 12% 97%); /* #f8f8f6 */
+  --color-bg-dark: hsl(120 16% 4%); /* #090c09 */
+  --color-border: hsl(60 3% 87%); /* #dfdfdd */
+  --color-border-indarkbg: hsl(130 6% 18%); /* #2b312c */
 }
 
 /* semantic color variables for this project */

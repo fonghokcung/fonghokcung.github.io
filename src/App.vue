@@ -73,7 +73,17 @@ watch(isMenuOpen, (open) => {
             </span>
           </RouterLink>
         </nav>
-        <p class="nav-version">v{{ APP_VERSION }}</p>
+        <section>
+          <div>
+            <!-- siri wave canvas -->
+            <img />
+            <a>
+              <!-- hover时显示: 15915940450.pdf -->
+              get in touch
+            </a>
+          </div>
+          <p class="nav-version">v{{ APP_VERSION }}</p>
+        </section>
       </div>
     </header>
 

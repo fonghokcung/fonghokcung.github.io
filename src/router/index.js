@@ -95,6 +95,15 @@ const router = createRouter({
       component: () => import('../views/QuarksFire.vue'),
     },
     {
+      path: '/astar',
+      name: 'AStar',
+      zh: 'A* 算法',
+      meta: {
+        desc: '纯 2D Canvas 的 A* 最短路径搜寻演示：随机生成八邻接无向路网，从左下角搜到右上角，实时呈现开放集/关闭集扩张与最短路径回溯。',
+      },
+      component: () => import('../views/AStar.vue'),
+    },
+    {
       path: '/manUal',
       name: 'ManUal',
       zh: 'ManUal',

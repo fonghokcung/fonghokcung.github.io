@@ -599,7 +599,7 @@ const PRESS_PARTS = {
   C2: new THREE.Vector3(0, 0, -1),
 };
 // .0002,.1
-const PRESS_DEPTH = 0.00005; // 压入深度（世界单位）
+const PRESS_DEPTH = 0.00008; // 压入深度（世界单位）
 const PRESS_T = 0.1; // 单程时长（s），全程压入+弹回 = PRESS_T × 2
 const PRESS_HL_DELAY = 0.44; // 按压动画结束后到变黄的延迟（s）
 let press = null; // { mesh, pivot, origParent, dir, t }
