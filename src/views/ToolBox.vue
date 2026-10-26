@@ -82,7 +82,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 // lil-gui：three 官方示例同款 GUI 控件（随 three 依赖分发，零额外安装）
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
@@ -200,17 +199,6 @@ function init() {
   // 世界坐标轴指示器：红=X 绿=Y 蓝=Z（位于原点，验证方向用）
   const SHOW_AXES = false; // 调试开关：是否显示坐标轴
   if (SHOW_AXES) scene.add(new THREE.AxesHelper(5));
-
-  // IBL 环境贴图：PBR 金属反射 / 清漆涂层 / 透射折射都靠它成像。
-  // 只有直射光（方向光）时这三个参数拉满也几乎看不出变化——金属度 1
-  // 只剩环境反射，没环境就是一坨黑。RoomEnvironment 是 three 内置的
-  // 摄影棚灯箱，PMREM 烘焙后挂 scene.environment，一次性开销。
-  // environmentIntensity 压到 0.3：全强度 IBL 叠加在既定 4 灯上会把
-  // 场景洗成一片亮灰（原观感靠明暗对比撑立体感），只留够反射成像的量
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.3;
-  pmrem.dispose(); // 烘完即弃（纹理由 GPU 持有，随 renderer 释放）
 
   loadModels();
   initMatGui(container); // 选中材质 GUI（拾取零件后自动展开）
