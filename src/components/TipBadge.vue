@@ -36,12 +36,18 @@ function updatePosition() {
 
   // 水平：中心对齐触发元素，左右 clamp 到视口内
   let x = rect.left + rect.width / 2 - popW / 2;
-  x = Math.max(VIEWPORT_MARGIN, Math.min(x, window.innerWidth - popW - VIEWPORT_MARGIN));
+  x = Math.max(
+    VIEWPORT_MARGIN,
+    Math.min(x, window.innerWidth - popW - VIEWPORT_MARGIN),
+  );
 
   // 垂直：默认下方；下方放不下且上方放得下则翻转
   let y = rect.bottom + GAP;
   flipped.value = false;
-  if (y + popH > window.innerHeight - VIEWPORT_MARGIN && rect.top - GAP - popH >= VIEWPORT_MARGIN) {
+  if (
+    y + popH > window.innerHeight - VIEWPORT_MARGIN &&
+    rect.top - GAP - popH >= VIEWPORT_MARGIN
+  ) {
     y = rect.top - GAP - popH;
     flipped.value = true;
   }

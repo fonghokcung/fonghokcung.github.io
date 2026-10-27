@@ -789,7 +789,7 @@ class Astar {
   }
 
   // 实时路径链：两算法「当前执行的点」沿各自前驱回溯到起点的路径，
-  // 每帧在路径层全清重画——A* 用黄色 4px、BFS 用白色 1px。
+  // 每帧在路径层全清重画——A* 用黄色 4px、BFS 用白色 4px。
   // A* 链 = cameFrom[当前关闭点]；BFS 链 = bfsParent[当前队首]。
   // 每步松弛/入队都可能改挂前驱，增量维护反而更贵，全清重画最省心；
   // 链长 O(路径长)，每帧 O(链长) 次描边可忽略不计
@@ -801,6 +801,21 @@ class Astar {
     f.lctxP.setTransform(f.dpr, 0, 0, f.dpr, 0, 0);
     f.lctxP.translate(f.ox, f.oy);
     f.lctxP.lineWidth = 4;
+    // 绘制顺序 = 层级：白链先画、黄链后画（canvas 后画盖先画），
+    // 两链重叠段黄线始终盖在白线上面——A* 是主角
+    // BFS 链：当前队首（下一个待出队点）→ 起点。白色 4px——撒网是
+    // 黑色剪影，探测链用白色高亮反差，一眼盯住 BFS 的「当前触手」
+    if (f.bfsQueue.length && !f.bfsDone) {
+      f.lctxP.strokeStyle = '#fff';
+      var b = f.bfsQueue[0];
+      f.lctxP.beginPath();
+      f.lctxP.moveTo(f.index2center(b).x, f.index2center(b).y);
+      while (f.bfsParent[b] >= 0 && b !== f.s) {
+        b = f.bfsParent[b];
+        f.lctxP.lineTo(f.index2center(b).x, f.index2center(b).y);
+      }
+      f.lctxP.stroke();
+    }
     // A* 链：黄链头（astarHead，见 watchOpenSet）→ 起点。astarDone
     // 后链头定格在终点，链完整显示「A* 认为的最短路」——供 BFS
     // 收官前的等待期观者审视，success 后由 3px 定稿线接管
@@ -812,20 +827,6 @@ class Astar {
       while (f.cameFrom[v] !== undefined && v !== f.s) {
         v = f.cameFrom[v];
         f.lctxP.lineTo(f.index2center(v).x, f.index2center(v).y);
-      }
-      f.lctxP.stroke();
-    }
-    // BFS 链：当前队首（下一个待出队点）→ 起点。白色 1px——撒网是
-    // 黑色剪影，探测链用白色细线高亮反差，一眼盯住 BFS 的「当前触手」
-    if (f.bfsQueue.length && !f.bfsDone) {
-      f.lctxP.lineWidth = 1;
-      f.lctxP.strokeStyle = '#fff';
-      var b = f.bfsQueue[0];
-      f.lctxP.beginPath();
-      f.lctxP.moveTo(f.index2center(b).x, f.index2center(b).y);
-      while (f.bfsParent[b] >= 0 && b !== f.s) {
-        b = f.bfsParent[b];
-        f.lctxP.lineTo(f.index2center(b).x, f.index2center(b).y);
       }
       f.lctxP.stroke();
     }
@@ -917,7 +918,7 @@ class Astar {
     });
     return f;
   }
-  // 底部状态文字（三段：搜寻中 / A* 已到终点等 BFS / 路径已找到）
+  // 底部状态文字（三段：搜寻中 / A* 已到终点等 BFS / 已完成）
   // 与起终点标记。文字水平居中画在底边避让带里，
   // 距离左下角全屏按钮（left:14 起、宽 36px）足够远，不会被盖住。
   // 抖动细节：loading 点数 1~3 循环会让字符串总宽变化，若整体居中
@@ -932,7 +933,7 @@ class Astar {
     var label;
     var dots = '';
     if (f.complete) {
-      label = '路径已找到';
+      label = '已完成';
     } else if (f.astarDone) {
       // A* 已到终点，等 BFS 收官做路径比对（此时 A* 链已定格）
       label = 'A* 已到终点，等待 BFS';
@@ -947,10 +948,15 @@ class Astar {
     // 文字锚点 = 中心 − 最大总宽/2，不随当前点数变化
     f.ctx.textAlign = 'left';
     var dotsMaxWidth = f.ctx.measureText('...').width;
-    var labelX = f.stageW / 2 - (f.ctx.measureText(label).width + dotsMaxWidth) / 2;
+    var labelX =
+      f.stageW / 2 - (f.ctx.measureText(label).width + dotsMaxWidth) / 2;
     f.ctx.fillText(label, labelX, f.stageH - 19.5);
     if (dots) {
-      f.ctx.fillText(dots, labelX + f.ctx.measureText(label).width, f.stageH - 19.5);
+      f.ctx.fillText(
+        dots,
+        labelX + f.ctx.measureText(label).width,
+        f.stageH - 19.5,
+      );
     }
 
     // 起终点标记：终点 V-1（右上）与起点 0（左下），--color3 绿色。

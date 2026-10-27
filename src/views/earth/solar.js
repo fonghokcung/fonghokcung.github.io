@@ -5,7 +5,9 @@ export const EARTH_TILT_DEG = 23.44; // 黄赤交角 ε（J2000 精确值 23°26
 // 自转演示速度（度/真实秒）。换算「小时/秒」：每真实 1 秒模拟时间推进的小时数，
 // 口径同 earth.mc665.cn。真实地球恒星日 = 23h56m = 23.9345h 转 360°
 export const SPIN_DEG_PER_SEC = 18; // 每秒 18 经度
-export const SPIN_HOURS_PER_SEC = ((SPIN_DEG_PER_SEC / 360) * 23.9345).toFixed(1); // '1.2'
+export const SPIN_HOURS_PER_SEC = ((SPIN_DEG_PER_SEC / 360) * 23.9345).toFixed(
+  1,
+); // '1.2'
 
 /* 公转角度 θ（弧度）：夏至 = 0，从北黄极（+Y）俯视逆时针推进，每天 2π/365。
  * 太阳方向 = (−cosθ, 0, sinθ)，始终在黄道面（xoz 平面）内：

@@ -26,7 +26,10 @@ export const panelRows = [
     label: '人口增长',
     format: (c) => {
       if (!c.populationLatest || !c.population?.['2005']) return '—';
-      const pct = ((c.populationLatest / c.population['2005'] - 1) * 100).toFixed(1);
+      const pct = (
+        (c.populationLatest / c.population['2005'] - 1) *
+        100
+      ).toFixed(1);
       return `${pct}%`;
     },
   },

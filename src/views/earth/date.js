@@ -18,7 +18,12 @@ export function parseSimDate(search = location.search) {
       ? `${dateMatch[1]}-${String(+dateMatch[2]).padStart(2, '0')}-${String(+dateMatch[3]).padStart(2, '0')}`
       : null;
   const date = ymdStr
-    ? new Date(+ymdStr.slice(0, 4), +ymdStr.slice(5, 7) - 1, +ymdStr.slice(8, 10), 12)
+    ? new Date(
+        +ymdStr.slice(0, 4),
+        +ymdStr.slice(5, 7) - 1,
+        +ymdStr.slice(8, 10),
+        12,
+      )
     : new Date();
   return { date, text: ymdStr };
 }

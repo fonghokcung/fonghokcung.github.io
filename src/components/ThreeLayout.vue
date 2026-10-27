@@ -101,8 +101,8 @@ defineExpose({ stageRef, txtWidth });
       <button
         v-if="fullscreenSupported"
         class="stage-fullscreen"
-        :title="isFullscreen ? '退出全屏' : '全屏查看'"
-        :aria-label="isFullscreen ? '退出全屏' : '全屏查看'"
+        :title="isFullscreen ? '退出全屏' : '全屏'"
+        :aria-label="isFullscreen ? '退出全屏' : '全屏'"
         @click="toggleFullscreen"
       >
         <svg
