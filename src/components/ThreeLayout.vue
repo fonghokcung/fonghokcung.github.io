@@ -95,7 +95,9 @@ defineExpose({ stageRef, txtWidth });
       <slot name="stage" />
 
       <!-- 舞台左下角全屏按钮：所有使用本骨架的页面（首页除外）自动具备。
-           全屏时图标切为「向内收拢」形态，点击退出 -->
+           全屏时图标切为「向内收拢」形态，点击退出。
+           hover 效果（motion.dev fresh-primary-action 原版手法）：
+           ::before 斜切面经 clip-path 多边形插值，从左上向右下滑入 -->
       <button
         v-if="fullscreenSupported"
         class="stage-fullscreen"
@@ -201,13 +203,34 @@ defineExpose({ stageRef, txtWidth });
   border-radius: 6px;
   cursor: pointer;
   backdrop-filter: blur(4px);
+  overflow: hidden; /* 裁剪斜切面滑入时超出按钮的部分 */
+}
+
+/* hover 斜切面（motion.dev fresh-primary-action 原版手法）：
+ * ::before 充当「hover 面」，静止时 clip-path 裁成左缘零面积碎片，
+ * hover 时多边形顶点插值——右边界从顶部 200% 斜插到 100%，
+ * 呈现左上 → 右下的对角滑入。clip-path 过渡由 GPU 合成，
+ * 比宽高/位移类动画更顺滑 */
+.stage-fullscreen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--color2); /* 电光蓝：主题彩蛋色，全站统一 */
+  clip-path: polygon(-1% 0%, -1% 0%, -100% 100%, -1% 100%);
+  transition: clip-path 0.4s cubic-bezier(0.25, 0, 0, 1);
 }
 
 .stage-fullscreen:hover {
-  background: rgba(40, 55, 75, 0.9);
+  border-color: transparent; /* 斜切面盖满后边框融进蓝底 */
+}
+
+.stage-fullscreen:hover::before {
+  clip-path: polygon(0% 0%, 200% 0%, 100% 100%, 0% 100%);
 }
 
 .stage-fullscreen svg {
+  position: relative;
+  z-index: 1; /* 图标压在斜切面之上 */
   width: 16px;
   height: 16px;
 }

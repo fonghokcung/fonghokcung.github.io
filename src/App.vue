@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { RouterLink, RouterView, useRouter } from 'vue-router';
+import SiriWave from 'siriwave';
 
 const router = useRouter();
 const routes = router.options.routes;
@@ -11,9 +12,113 @@ const isMenuOpen = ref(false);
 /* 版本号：从 package.json 读取（vite.config.js 注入 VITE_VERSION），与 index.html 同源 */
 const APP_VERSION = import.meta.env.VITE_VERSION;
 
-/* 抽屉打开时锁定背景滚动 */
+/* ---- 底部头像区：随机切换（原作 fangxuecong.com 的 comming_soon 移植版）----
+ * 四张头像 head0-3，暗色底上按随机间隔轮播亮出一张；
+ * 资源在 src/assets/head，import 后走 Vite 指纹打包 */
+const headImgs = Object.values(
+  import.meta.glob('./assets/head/head*.png', {
+    eager: true,
+    import: 'default',
+  }),
+);
+const headIndex = ref(-1);
+let headTimer = null;
+
+function scheduleHeadSwap() {
+  headTimer = setTimeout(
+    () => {
+      // 排除当前张，保证每次切换都换图（否则随机撞号 = 视觉空转）
+      if (headImgs.length > 1) {
+        let next;
+        do {
+          next = Math.floor(Math.random() * headImgs.length);
+        } while (next === headIndex.value);
+        headIndex.value = next;
+      }
+      scheduleHeadSwap();
+    },
+    300 + Math.random() * 2700,
+  ); // 0.3~3s 随机切换
+}
+
+/* 首张立即亮出（避免载入后头像区空缺 0.8~3s），此后随机轮换 */
+function startHeadShow() {
+  headIndex.value = Math.floor(Math.random() * headImgs.length);
+  scheduleHeadSwap();
+}
+
+/* ---- get in touch：hover 显示简历 PDF，点击新窗口打开 ---- */
+const pdfUrl = '/15915940450.pdf';
+
+/* ---- Siri 波：侧栏底部氛围动画（siriwave 库，ios9 风格）---- */
+const waveHost = ref(null);
+let siriWave = null;
+let waveVisible = true; // IntersectionObserver 结果缓存，与抽屉开合做与运算
+
+function updateWaveRun() {
+  // 抽屉关着（移动端）或滚出视口时暂停 raf，省电
+  const drawerOpen = isMenuOpen.value;
+  if (waveVisible && (drawerOpen || window.innerWidth >= 768)) {
+    siriWave?.start();
+  } else {
+    siriWave?.stop();
+  }
+}
+
+let headObserver = null;
+
+onMounted(() => {
+  if (headImgs.length) {
+    startHeadShow();
+  }
+  if (waveHost.value) {
+    siriWave = new SiriWave({
+      container: waveHost.value,
+      // classic | ios9
+      style: 'ios9',
+      width: 200, // 铺满链接容器（桌面侧栏宽 200px）
+      height: 69,
+      speed: 0.1,
+      amplitude: 0.8,
+      autostart: false,
+      color: '#fbd509', // 主题黄，匹配站点色板
+    });
+    siriWave.start();
+    // 视口外暂停
+    headObserver = new IntersectionObserver((entries) => {
+      waveVisible = entries[0].isIntersecting;
+      updateWaveRun();
+    });
+    headObserver.observe(waveHost.value);
+  }
+  window.addEventListener('resize', updateWaveRun);
+  // 页面切到后台：暂停头像轮换（后台 timer 被浏览器节流，切回时会
+  // 连跳多张，直接停掉更干净），回前台再续
+  document.addEventListener('visibilitychange', onVisibilityChange);
+});
+
+function onVisibilityChange() {
+  if (document.hidden) {
+    clearTimeout(headTimer);
+    headTimer = null;
+  } else if (headImgs.length) {
+    scheduleHeadSwap();
+  }
+}
+
+onBeforeUnmount(() => {
+  clearTimeout(headTimer);
+  headObserver?.disconnect();
+  window.removeEventListener('resize', updateWaveRun);
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+  siriWave?.dispose();
+  siriWave = null;
+});
+
+/* 抽屉开合联动波动画 */
 watch(isMenuOpen, (open) => {
   document.body.style.overflow = open ? 'hidden' : '';
+  updateWaveRun();
 });
 </script>
 
@@ -74,12 +179,31 @@ watch(isMenuOpen, (open) => {
           </RouterLink>
         </nav>
         <section>
-          <div>
-            <!-- siri wave canvas -->
-            <img />
-            <a>
-              <!-- hover时显示: 15915940450.pdf -->
-              get in touch
+          <div class="nav-extra">
+            <!-- 头像随机切换（原作 comming_soon 移植） -->
+            <div class="head-stage">
+              <img
+                class="head-img"
+                :src="headImgs[headIndex]"
+                alt=""
+                :class="{ visible: headIndex >= 0 }"
+              />
+            </div>
+            <!-- get in touch：Siri 波作背景，文字居中叠在波形上；
+                 hover 翻面：get in touch 滚出，15915940450.pdf 滚入 -->
+            <a
+              ref="waveHost"
+              class="get-in-touch"
+              :href="pdfUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="下载我的简历"
+            >
+              <span class="git-rolling" aria-hidden="true">
+                <span class="git-text">get in touch</span>
+                <span class="git-text git-text--incoming">15915940450.pdf</span>
+              </span>
+              <span class="sr-only">get in touch（打开简历 PDF）</span>
             </a>
           </div>
           <p class="nav-version">v{{ APP_VERSION }}</p>
@@ -215,6 +339,111 @@ nav {
   font-size: 12px;
   color: rgba(255, 255, 255, 0.35);
   font-variant-numeric: tabular-nums;
+}
+
+/* ---- 侧栏底部：头像轮播 + Siri 波 + get in touch ----
+ * 原作 fangxuecong.com 页脚 comming_soon 区的移植版 */
+.nav-extra {
+  padding: 8px 16px 4px;
+  border-top: 1px solid var(--color-border-indarkbg);
+  border-bottom: 1px solid var(--color-border-indarkbg);
+}
+
+/* 头像舞台：固定尺寸防切换跳动；图淡入淡出（随机间隔由 JS 驱动）
+ * PC 60px / 移动端 40px */
+.head-stage {
+  position: relative;
+  height: 66px;
+  width: 66px;
+  margin: 0 auto 4px; /* 块级舞台水平居中（缩为固定尺寸后不再撑满整行） */
+  overflow: hidden;
+}
+
+.head-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.head-img.visible {
+  opacity: 1;
+}
+
+@media (max-width: 767px) {
+  .head-stage {
+    height: 44px;
+    width: 44px;
+  }
+}
+
+/* Siri 波直接画进 get in touch 链接容器：siriwave 往 container 里插
+ * canvas（width 200×height 56，非 cover 模式），CSS 同尺寸钉在容器
+ * 底缘——波的中轴（heightMax = h/2-6）即视觉重心贴近链接下边缘，
+ * 文字 span 居中叠在波形上 */
+.get-in-touch {
+  position: relative;
+  display: flex;
+  align-items: flex-end; /* 文字贴底，与 canvas 底缘（波谷基线）对齐 */
+  justify-content: center;
+  height: 56px;
+  margin-bottom: 6px;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 56px; /* 行高等于容器高：flex-end 下基线压住底缘 */
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.get-in-touch :deep(canvas) {
+  position: absolute;
+  left: 0;
+  bottom: 0; /* canvas 底缘 = 链接底缘 */
+  width: 200px;
+  height: 56px;
+}
+
+.get-in-touch .git-rolling {
+  position: relative; /* 压在 canvas 上方 */
+  display: block;
+  width: 100%; /* 铺满链接容器，文件名才不因视窗过窄被截断 */
+  height: 30px; /* 单行文字高 = 翻面视窗 */
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.get-in-touch .git-text {
+  display: block;
+  line-height: 30px;
+  text-align: center; /* 文字居中，区别于左对齐的导航菜单 */
+  white-space: nowrap;
+}
+
+/* 预备副本（PDF 文件名）：悬在视窗上方隐藏，hover 时随主副本下移滚入 */
+.get-in-touch .git-text--incoming {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  transform: translateY(-100%);
+}
+
+/* hover：两份同时下移一行——当前文字滑出、文件名滚入（与导航 rolling 同款） */
+.get-in-touch:hover .git-text {
+  transform: translateY(100%);
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.get-in-touch:hover .git-text--incoming {
+  transform: translateY(0);
+}
+
+.get-in-touch:hover {
+  /* color: var(--color-primary); */
 }
 
 nav a {

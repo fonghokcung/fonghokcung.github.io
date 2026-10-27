@@ -1,5 +1,9 @@
 <template>
-  <ThreeLayout class="FlowingWater__vue" ref="layoutRef" @stage-resize="onResize">
+  <ThreeLayout
+    class="FlowingWater__vue"
+    ref="layoutRef"
+    @stage-resize="onResize"
+  >
     <template #default>
       <h1 class="txt-title">流动水波</h1>
       <p class="txt-sub">
@@ -14,21 +18,14 @@
       </p>
       <p class="txt-sub">
         天空里的云层是在片元着色器
-        <span class="fbm-tip" tabindex="0">
-          ?
-          <span class="fbm-tip__popup">
-            顶点只搭了个极简天空盒，真正的云形是光栅化之后每个像素独立跑噪声算出来的。
-          </span>
-        </span>
+        <TipBadge
+          text="顶点只搭了个极简天空盒，真正的云形是光栅化之后每个像素独立跑噪声算出来的。"
+        />
 
         中实时计算的：用 Perlin 梯度噪声 生成云的基本密度场，再叠加四倍频 fbm
-        <span class="fbm-tip" tabindex="0">
-          ?
-          <span class="fbm-tip__popup">
-            fbm 全称 fractal Brownian
-            motion（分形布朗运动），把基础噪声多层叠加的分形组合方法。
-          </span>
-        </span>
+        <TipBadge
+          text="fbm 全称 fractal Brownian motion（分形布朗运动），把基础噪声多层叠加的分形组合方法。"
+        />
         （振幅减半、频率翻倍） 补出从大云团到细碎边缘的层次。
       </p>
       <a
@@ -56,6 +53,7 @@ import * as THREE from 'three';
 import { Water } from 'three/addons/objects/Water.js';
 import { Sky } from 'three/addons/objects/Sky.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
+import TipBadge from '@/components/TipBadge.vue';
 
 const layoutRef = ref(null);
 
@@ -191,45 +189,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-/* fbm 问号图标 + hover/聚焦 tooltip */
-.fbm-tip {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 13px;
-  height: 13px;
-  margin: 0 2px;
-  font-size: 9px;
-  color: var(--color3);
-  cursor: help;
-  border: 1px solid var(--color3);
-  border-radius: 50%;
-}
-.fbm-tip__popup {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: -4px;
-  z-index: 50;
-  width: 200px;
-  padding: 6px 8px;
-  font-size: 10px;
-  line-height: 1.5;
-  color: #fff;
-  visibility: hidden;
-  background: var(--color3);
-  border-radius: 5px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-  opacity: 0;
-  transition: opacity 0.15s;
-  pointer-events: none;
-}
-.fbm-tip:hover .fbm-tip__popup,
-.fbm-tip:focus .fbm-tip__popup {
-  visibility: visible;
-  opacity: 1;
-}
-
 /* 让链接复用 txt-hint 的分隔线与块级布局，并去掉默认下划线 */
 .txt-hint {
   display: block;
