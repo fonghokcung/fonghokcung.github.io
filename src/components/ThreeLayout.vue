@@ -178,6 +178,12 @@ defineExpose({ stageRef, txtWidth });
   min-width: 0;
   min-height: 200px;
   overflow: hidden;
+  /* 手势交由 OrbitControls 处理（单指旋转/双指缩放已在 controls 层 preventDefault），
+   * 浏览器原生平移缩放关掉防止页面抖动；视口级不再禁 user-scalable（无障碍）。
+   * 注意：本属性会被子元素继承——鼠标滚轮/点击/JS 事件不受影响，但 stage 内
+   * 若将来加入「需要手指滚动」的可滚动区域（长列表等），须在其上单独声明
+   * touch-action: pan-y 恢复纵向滚动 */
+  touch-action: none;
 }
 
 .stage :deep(canvas) {

@@ -1,6 +1,6 @@
 {
   "name": "fonghokcung.github.io",
-  "version": "8.1.26",
+  "version": "8.1.27",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,6 @@
   },
   "dependencies": {
     "@tweenjs/tween.js": "^25.0.0",
-    "pinia": "^4.0.3",
     "siriwave": "^2.4.0",
     "stats.js": "^0.17.0",
     "three": "^0.186.0",

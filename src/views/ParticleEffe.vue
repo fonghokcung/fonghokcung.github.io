@@ -462,7 +462,21 @@ function onResize() {
 }
 
 /* ===================== 生命周期 ===================== */
+// 霞鹜文楷 webfont 的 CSS 仅本页使用：组件挂载时动态注入 <link>，
+// 卸载时移除——避免全站（index.html）为单个页面阻塞首屏加载
+const FONT_CSS_URL =
+  'https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css';
+let fontLinkEl = null; // 动态注入的 <link>，卸载时移除
+
+function loadFontCss() {
+  fontLinkEl = document.createElement('link');
+  fontLinkEl.rel = 'stylesheet';
+  fontLinkEl.href = FONT_CSS_URL;
+  document.head.appendChild(fontLinkEl);
+}
+
 onMounted(() => {
+  loadFontCss();
   canvasEl = canvasRef.value;
   ctx = canvasEl.getContext('2d');
   onResize();
@@ -507,6 +521,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disposed = true;
   cancelAnimationFrame(rafId);
+  fontLinkEl?.remove(); // 字体 CSS 仅本页需要，离开时移除
 });
 </script>
 

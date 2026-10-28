@@ -1,5 +1,4 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import HomeView from '@/views/HomeView.vue';
 
 /* ===================== SEO：路由级描述 =====================
  * 站点标题统一为 SITE_TITLE（不随路由变化）；每条路由的 meta.desc 由下方
@@ -17,7 +16,9 @@ const router = createRouter({
       name: 'home',
       zh: 'Home',
       meta: { desc: DEFAULT_DESC },
-      component: HomeView,
+      // 首页同样懒加载：GPGPU 鸟群依赖 three.js（gzip ~214KB），静态引入会把
+      // three 拖进 entry chunk，AStar/歌词等纯 2D 页面的用户也得白下载
+      component: () => import('@/views/HomeView.vue'),
     },
     {
       path: '/dtwin',

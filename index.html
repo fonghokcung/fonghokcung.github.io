@@ -71,16 +71,9 @@
     <!-- ---- 资源 ---- -->
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/favicon.png" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
-    />
-    <!-- 霞鹜文楷 webfont（歌词页 canvas 用）；preconnect 加速字体 CDN 握手 -->
-    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css"
-    />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 霞鹜文楷 webfont 仅歌词粒子页使用：由 ParticleEffe.vue 挂载时动态注入，
+         不在此全局引入（避免全站首屏为单个页面阻塞 CDN 样式表） -->
     <script>
       // Vue DevTools 悬浮球固定到左下角：插件本身没有位置配置项，
       // 位置由其 localStorage 状态 __vue-devtools-frame-state__ 控制

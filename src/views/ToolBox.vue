@@ -99,9 +99,12 @@ const MODELS = [
 // 四个 glb 都是 Draco 压缩版：共享一个带解码器的 loader（每个 GLTFLoader 各配一个
 // DRACOLoader 会重复起 worker）。主角虽然也是 Draco，但保留了独立的 mesh
 // 节点（零件未合并），拾取逻辑无需改动。
-// 解码器地址由 three 的 DRACOLoader 用 import.meta.url 内置，Vite 会随包发布，
-// 无需 setDecoderPath，也不用往 public 里拷解码器文件
-const dracoLoader = new DRACOLoader();
+// 解码器走 public/draco 固定路径（文件从 node_modules/three 的 draco/gltf 拷入）：
+// 默认的 import.meta.url 内置方案会让 Vite 按 hash 重复 emit 多份 wasm/wrapper/js
+//（GPGPU 鸟群页也加载 three，共享 chunk 各带一份），固定路径只保留一套且 URL 稳定
+const dracoLoader = new DRACOLoader().setDecoderPath(
+  `${import.meta.env.BASE_URL}draco/`,
+);
 const gltfLoader = new GLTFLoader().setDRACOLoader(dracoLoader);
 
 // 移动端（<768px）只载入主角：屏幕小放不下陈列排开，还省下 3 个 glb

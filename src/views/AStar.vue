@@ -24,12 +24,12 @@
         网格配色两套轮换；
         <br />
         每 3 轮有 1 轮在右上区域布一道 L 形隔墙（横竖约占网格 2/3，
-        墙点与四周断开、深灰线标出），最短路径须绕过墙端缺口；
+        墙点与四周断开），最短路径须绕过墙端缺口；
         <br />
-        蓝=开放集，
-        <br />黄=关闭集， <br />黄线=A*
-        最良优先搜索（速度最快，但可能不是最优解）， <br />白线=BFS最短路径
-        <br />黑=BFS 广度优先对照搜索的 撒网范围（与 A* 重叠处显示 A* 颜色）；
+        蓝=开放集（正在处理），<br />黄=A* 已定案区域， <br />黄粗线=A*
+        实时最短路链（速度最快，但可能不是最优解）， <br />白=BFS
+        广度优先对照搜索的 撒网范围， <br />白粗线=BFS 实时探测链（与 A*
+        重叠处显示 A* 颜色）；
         <br />
         搜寻完成后 10s 重开新一轮
       </p>
@@ -48,8 +48,8 @@
  *   生成路网（8 邻接 + rate 概率随机抽边）→ BFS 校验连通性（不连通
  *   则整网重造，重造时逐步加密抽边率提高小网格的连通概率）→ A* 与
  *   BFS 同帧率各走一步竞速 → A* 松弛到终点即 astarDone（停步定格
- *   黄链）→ BFS 到达终点才 complete：回溯双方路径做最优性比对，
- *   A* 非最优时画面追加黑色 BFS 真最短路 → 停留 10s 换底色重开。
+ *   黄链）→ BFS 到达终点才 complete：bfsFlush 染白定格撒网范围 →
+ *   停留 10s 换底色重开。
  *
  * 性能设计（全联通网格 E≈4V、V 数千时的掉帧治理）：
  *   - 三层分离渲染：边层每轮静态烘焙，顶点层按集合变动增量更新，
@@ -58,10 +58,13 @@
  *   - 集合成员判定走 state 数组 O(1)，替代 includes 线性扫描；
  *   - DPR 适配：位图 ×devicePixelRatio + setTransform，视网膜屏锐利。
  *
- * BFS 对照：同一张路网同步跑一个盲目 BFS，黑色点线为撒网范围
- * （暗底负空间剪影，与所有网格色正交）；白色 1px 细线为 BFS 当前
- * 探测路径；黄色 4px 粗线为 A* 当前最短路。渲染优先级 A* > BFS——
- * A* 已涉足（开放/关闭/路径）的点不染黑，直观呈现「少走弯路」对比
+ * 视觉体系（全部集中在 STYLE 配置，按信息重要性分三层）：
+ *   - 背景层：路网底边/顶点/隔墙，1px 网格色，全程不变；
+ *   - 范围层：已定格的涉足区（A* 关闭集黄、BFS 撒网白），统一 α0.4
+ *     半透明、点线同色，整体「退后」；
+ *   - 前景层：两算法实时路径链，4px 实心（黄=A* 白=BFS），最抢眼。
+ *   开放集蓝点实心是「正在处理」的活跃信号。渲染优先级 A* > BFS——
+ *   A* 已涉足的点不被 BFS 染色，直观呈现「少走弯路」对比。
  *
  * 结构：class Astar（算法与绘制，保留原作 var f = this 风格）+
  * 组件侧（实例持有 / raf 驱动 / 10s 重启定时 / 移动端判定）。
@@ -98,6 +101,56 @@ const DENSITY_RATE = { sparse: 0.12, medium: 0.2, dense: 0.35 };
 // 改 false 关闭此额外功能，首轮即随机路网
 const ALL_CONN = true;
 
+/* ---- 视觉配置（STYLE）：全部颜色/线宽/半径的唯一来源 ----
+ * 三层视觉体系，按「信息重要性」从后往前：
+ *   1. 背景层（LAYER_BG）    —— 静态路网：底边/顶点/隔墙，1px 网格色，全程不变
+ *   2. 范围层（LAYER_RANGE） —— 已定格的搜索范围：半透明 α0.4，点线同色系，
+ *                              整体「退后」，弱于算法主色（蓝/黄实心）
+ *   3. 前景层（LAYER_LIVE）  —— 活跃信号：实时路径链 4px 实心，始终最抢眼
+ * 调整任何颜色/粗细只改这个对象，各绘制函数只从这里读值 */
+const STYLE = {
+  // 背景层：路网本体（无透明度，与深灰底拉开即可）
+  LAYER_BG: {
+    edgeWidth: 1, // 路网底边线宽
+  },
+  // 范围层：A*/BFS 已定格的涉足区（点与连线同色同透明度 = 范围成片）
+  LAYER_RANGE: {
+    lineWidth: 1, // 范围连线线宽（与背景层底边同档）
+    closedPoint: 'rgba(251, 213, 9, 0.3)', // A* 关闭集黄点/黄-黄边
+    bfsPoint: 'rgba(255, 255, 255, 0.3)', // BFS 白点/白-白边
+  },
+  // 前景层：两算法实时路径链（canvas 后画盖先画：白链先、黄链后）
+  LAYER_LIVE: {
+    lineWidth: 4, // 实时链线宽（唯一的粗线 = 唯一的动态焦点）
+    bfsColor: '#fff', // BFS 探测链：白
+    // A* 链颜色 = STYLE.PALETTES[*].closed 主题黄（实心）
+  },
+  // 顶点半径（所有格点统一，含范围层点）
+  POINT_RADIUS: 2,
+  // 起点/终点标记半径（唯一的大圆点 = 搜索两端锚点）
+  ENDPOINT_RADIUS: 5,
+  // 轮次交替配色：iInter & 1 轮流取用。仅网格/文字底色（base）随轮切换，
+  // 算法语义色（open/closed）两轮固定——开放集蓝/关闭集黄是「语言」，
+  // 不随底色变；closed 亦作 A* 实时链与状态文字的颜色（实心主题黄）
+  // base 用暗淡色（canvas 底 #141414 的微亮变体）：路网隐入暗夜只剩
+  // 隐约纹理，算法活动的点与线成为黑暗中的光——「暗夜探路」的意境；
+  // 两轮明度接近、仅色相有别（冷青蓝 ⇄ 暖灰），轮换时不产生跳变感
+  PALETTES: [
+    {
+      // 蓝底轮：路网/文字 = 暗夜冷青（底色 #141414 的微亮蓝移）
+      base: '#1e2f3f',
+      open: '#3d98ff', // 开放集：电光蓝（固定）
+      closed: '#fbd509', // 关闭集：主题黄（固定）
+    },
+    {
+      // 灰底轮：路网/文字 = 暗夜暖灰（同明度、色相偏暖）
+      base: '#333333',
+      open: '#3d98ff',
+      closed: '#fbd509',
+    },
+  ],
+};
+
 class Astar {
   constructor(canvas) {
     this.eleCanvas = canvas;
@@ -109,26 +162,6 @@ class Astar {
       .getPropertyValue('--color3')
       .trim();
 
-    // 配色：开放集=电光蓝、关闭集=路径=主题黄 #FBD509（--color-primary），
-    // 两轮固定不变；仅网格/文字底色随 iInter 交替（青蓝 ⇄ 中性灰）。
-    // 关闭集与路径同为黄色：搜寻全程铺开「黄色势力范围」，抵达终点时
-    // 最短路径以 3px 粗线从黄腹地中浮出，同色不同层级
-    this.PALETTES = [
-      {
-        // 蓝底轮：网格/文字 = 高饱和青蓝
-        base: '#2f6f9f',
-        open: '#3d98ff', // 开放集：电光蓝（固定）
-        closed: '#fbd509', // 关闭集：主题黄（固定）
-        path: '#fbd509', // 最短路径：主题黄（固定）
-      },
-      {
-        // 灰底轮：网格/文字 = 中性灰
-        base: '#8a8a8a',
-        open: '#3d98ff',
-        closed: '#fbd509',
-        path: '#fbd509',
-      },
-    ];
     this.d = GRID_SIZE; // 网格单位长度（px），设置项见文件头
     this.dBig = BIG_GRID_SIZE; // 「大格局」轮的网格单位长度
 
@@ -137,7 +170,6 @@ class Astar {
     this.currentStep = -1; // 当前搜寻步数（n / interval）
     this.rate = DENSITY_RATE[DENSITY]; // 邻边抽取概率（设置项 DENSITY 档位）
     this.rateBoost = 0; // 连通性守卫重造时的抽边率临时增量（每轮内部使用）
-    this.SPTw = 3; // 最短路径（SPT）线宽 px，顶点半径 = SPTw - 1
 
     // 舞台尺寸与网格原点由外部（resize）注入：
     //   stageW/H 舞台 CSS 尺寸；rows/cols 网格行列数；
@@ -154,14 +186,14 @@ class Astar {
     this.regens = 0; // 当前轮因不连通已重造的次数
 
     // BFS 对照组：同一张路网、同一个起点，与 A* 同帧率各走一步——
-    // 黑色点线 = BFS 涉足范围（盲目扩散），直观对比 A* 启发式搜索的
+    // 白色点线 = BFS 涉足范围（盲目扩散），直观对比 A* 启发式搜索的
     // 「直奔终点」与 BFS 的「全面撒网」。渲染优先级：A* 先占的点
-    // （开放/关闭/路径）保持 A* 颜色，BFS 只染 A* 尚未涉足的点
-    this.bfsColor = '#000'; // 纯黑：暗底上的「负空间」剪影，与网格色正交
+    // （开放/关闭/路径）保持 A* 颜色，BFS 只染 A* 尚未涉足的点。
+    // 白色值在 STYLE.LAYER_RANGE.bfsPoint（α0.4），此处只留运行状态
     this.bfsQueue = []; // BFS 待访问队列
     this.bfsState = []; // 0未发现 1已入队 2已出队
     this.bfsParent = []; // BFS 前驱：bfsParent[w] = 入队来源（当前路径回溯用）
-    this.bfsDone = false; // BFS 到达终点（此后停止扩散，黑域定格）
+    this.bfsDone = false; // BFS 到达终点（此后停止扩散，白域定格）
     this.astarDone = false; // A* 到达终点（此后停止扩张，黄链定格，等 BFS 收官）
     this.astarHead = -1; // A* 黄链头：平时 = 最新定案点，astarDone 后 = 终点
 
@@ -200,11 +232,11 @@ class Astar {
   init(iInter) {
     var i;
     // ---- 本轮状态全部复位（resize / 10s 重启都会整轮重来）----
-    var palette = this.PALETTES[iInter & 1]; // iInter&1 交替两套底色
+    // 本轮配色：从 STYLE.PALETTES 按轮次取用（实例缓存一份，绘制热路径免查配置）
+    var palette = STYLE.PALETTES[iInter & 1]; // iInter&1 交替两套底色
     this.colorDefault = palette.base;
     this.colorOpenSet = palette.open;
     this.colorClosedSet = palette.closed;
-    this.colorSPT = palette.path;
     this.adj = []; // 邻接表：adj[v].neighbor = 与 v 相邻的顶点下标
 
     this.cameFrom = []; // 路径前缀：cameFrom[v] = 松弛时 v 的来源顶点
@@ -451,7 +483,7 @@ class Astar {
     );
 
     // 收集两臂的全部格点（含共享拐角，拐角只收一次）；
-    // wallEdges 记录臂内相邻点对，仅供 bakeLayers 画墙线
+    // wallEdges 记录臂内相邻点对，仅供 bakeLayers 用网格色重描一遍
     var wallVerts = [];
     this.wallEdges = [];
     var i;
@@ -565,61 +597,15 @@ class Astar {
     f.draw();
     return f;
   }
-  // 完成回调（BFS 收官后触发）：回溯 A* 路径 + 路径比对 +
-  // 描 3px 黄色 A* 路径线（非最优时黑线并列 BFS 路径）+ 排重启定时
+  // 完成回调（BFS 收官后触发）：回溯 A* 路径 + 排重启定时。
+  // 不再描定稿线/对照线：关闭集连片刷黄已把 A* 路径衬出（黄底黄点
+  // 自成通路），BFS 撒网白点同理自成范围——画面定格即可，无需额外线
   success() {
     var f = this;
     f.findPath();
-    f.bfsFlush(); // BFS 对照组收尾：剩余已发现点一次性染黑定格
-    // 路径比对：BFS 是无权图最短路基准。重合（同边集）= A* 找的
-    // 确实是最短路径；不重叠则黑线画出 BFS 的真最短路供对比
-    var sameEdges = f.checkPathOptimal();
-    // 黄线=A* 路径：路径顶点已随关闭集渐次刷黄，补描 3px 粗线
-    f.lctxV.lineWidth = f.SPTw;
-    f.lctxV.strokeStyle = f.colorSPT;
-    f.strokePath(f.result);
-    // 仅当 A* 非最优时额外描 2px 黑线（BFS 真最短路）供对照
-    if (!sameEdges) {
-      f.lctxV.lineWidth = 2;
-      f.lctxV.strokeStyle = f.bfsColor;
-      f.strokePath(f.bfsResult);
-    }
-    f.lctxV.lineWidth = 1;
+    f.bfsFlush(); // BFS 对照组收尾：剩余已发现点一次性染白定格
     if (f.onRestart) f.onRestart();
     return f;
-  }
-  // 沿顶点序列描线（success 的路径描线公共体）
-  strokePath(path) {
-    var f = this;
-    for (var i = 0; i < path.length - 1; i++) {
-      var a = f.index2center(path[i]);
-      var b = f.index2center(path[i + 1]);
-      f.lctxV.beginPath();
-      f.lctxV.moveTo(a.x, a.y);
-      f.lctxV.lineTo(b.x, b.y);
-      f.lctxV.closePath();
-      f.lctxV.stroke();
-    }
-    return f;
-  }
-  // 路径最优性比对：把两条路径都转成无向边集（「小下标,大下标」规范
-  // 化后入 Set），A* 边集与 BFS 边集完全一致 = A* 找到最短路径。
-  // 无权图最短路可能不唯一，但边集一致即等价最优
-  checkPathOptimal() {
-    var f = this;
-    if (!f.bfsResult || !f.bfsResult.length) return true;
-    var key = function (u, v) {
-      return u < v ? u + ',' + v : v + ',' + u;
-    };
-    var bfsSet = new Set();
-    for (var i = 0; i < f.bfsResult.length - 1; i++) {
-      bfsSet.add(key(f.bfsResult[i], f.bfsResult[i + 1]));
-    }
-    if (f.result.length !== f.bfsResult.length) return false; // 步数不同必非最优
-    for (var j = 0; j < f.result.length - 1; j++) {
-      if (!bfsSet.has(key(f.result[j], f.result[j + 1]))) return false;
-    }
-    return true;
   }
   // 路径回溯：沿 cameFrom 前缀从终点走到起点，倒序收集成 result。
   // 每次松弛只写一次 cameFrom（O(1)），回溯仅在到达终点时发生一次
@@ -672,9 +658,23 @@ class Astar {
 
     f.closedSet.push(current);
     f.astarHead = current; // 黄链头跟随最新定案点
-    // 关闭集 = 黄色势力范围：定案即刷黄（与旧版逐帧重绘的视觉效果一致）
+    // 关闭集 = 黄色势力范围（范围层）：定案即刷黄点 + 与已定案邻居连黄线
     f.state[current] = 2;
-    f.paintVertex(f.lctxV, current, f.colorClosedSet);
+    f.paintVertex(f.lctxV, current, STYLE.LAYER_RANGE.closedPoint);
+    // 黄-黄边：势力范围连成片（此前黄点之间隔着网格底色细线，观感割裂）。
+    // 每条黄-黄边只在后定案的一端触发一次，不会重复描线
+    f.lctxV.strokeStyle = STYLE.LAYER_RANGE.closedPoint;
+    f.lctxV.lineWidth = STYLE.LAYER_RANGE.lineWidth;
+    f.adj[current].neighbor.forEach(function (w) {
+      // state===2 = 已定案（黄点）
+      if (f.state[w] === 2) {
+        f.lctxV.beginPath();
+        f.lctxV.moveTo(f.index2center(w).x, f.index2center(w).y);
+        f.lctxV.lineTo(f.index2center(current).x, f.index2center(current).y);
+        f.lctxV.closePath();
+        f.lctxV.stroke();
+      }
+    });
 
     // 松弛 current 的所有邻居：已定案的跳过；
     // 经由 current 的代价更低则更新 g/f，并记 cameFrom 前缀
@@ -714,21 +714,18 @@ class Astar {
     return f;
   }
 
-  // 染黑一个 BFS 顶点（v 刚出队或 flush 定格），并把它与所有
-  // 「已是黑点」的邻居用黑线连起来——图上的黑-黑边全部可见：
+  // 染白一个 BFS 顶点（v 刚出队或 flush 定格），并把它与所有
+  // 「已是白点」的邻居用白线连起来——图上的白-白边全部可见：
   // 父边（父先出队）+ 兄弟边（同层互邻）都覆盖；每条边只在
   // 后出队的一端触发一次，不会重复描线。
-  // 仅当两端都处于 A* 空白区（state===0）才画，A* 颜色优先级不变。
-  // 线宽 2：格点坐标是半像素对齐（x.5），1px 黑线画在深灰底上时
-  // 横竖线尚可辨认，斜线被抗锯齿摊薄到与底色几乎无差——加粗一档
-  // 让斜线每段的暗色像素足够密，负空间剪影才完整
+  // 仅当两端都处于 A* 空白区（state===0）才画，A* 颜色优先级不变
   paintBfsVertex(v) {
     var f = this;
-    f.paintVertex(f.lctxV, v, f.bfsColor);
-    f.lctxV.strokeStyle = f.bfsColor;
-    f.lctxV.lineWidth = 2;
+    f.paintVertex(f.lctxV, v, STYLE.LAYER_RANGE.bfsPoint);
+    f.lctxV.strokeStyle = STYLE.LAYER_RANGE.bfsPoint;
+    f.lctxV.lineWidth = STYLE.LAYER_RANGE.lineWidth;
     f.adj[v].neighbor.forEach(function (w) {
-      // bfsState===2 = 已出队（黑点）；两端都得是 A* 空白
+      // bfsState===2 = 已出队（白点）；两端都得是 A* 空白
       if (f.bfsState[w] === 2 && f.state[w] === 0) {
         f.lctxV.beginPath();
         f.lctxV.moveTo(f.index2center(w).x, f.index2center(w).y);
@@ -740,7 +737,7 @@ class Astar {
     return f;
   }
   // BFS 对照组单步（与 watchOpenSet 同帧率各走一步）：
-  // 出队一顶点 → 染黑 + 连黑所有黑邻居 → 未发现邻居入队。
+  // 出队一顶点 → 染白 + 连白所有白邻居 → 未发现邻居入队。
   // A* 先到终点后 BFS 继续跑（整轮以 BFS 收官为准）；
   // BFS 到达终点：回溯自己的最短路径 + 置 complete 结束整轮
   bfsStep() {
@@ -748,7 +745,7 @@ class Astar {
     if (f.bfsDone || !f.bfsQueue.length) return f;
     var v = f.bfsQueue.shift();
     f.bfsState[v] = 2;
-    // 黑点/黑线只画在 A* 的空白区（state===0）；A* 已涉足的点保持
+    // 白点/白线只画在 A* 的空白区（state===0）；A* 已涉足的点保持
     // A* 颜色与网格底色
     if (f.state[v] === 0) {
       f.paintBfsVertex(v);
@@ -776,7 +773,7 @@ class Astar {
     return f;
   }
   // BFS 完场收尾（A* success 时调用一次）：把 BFS 队列里剩余的
-  // 已发现点一次性染黑定格（含黑-黑连线），完整呈现「BFS 撒网范围」
+  // 已发现点一次性染白定格（含白-白连线），完整呈现「BFS 撒网范围」
   bfsFlush() {
     var f = this;
     f.bfsQueue.forEach(function (v) {
@@ -789,24 +786,23 @@ class Astar {
   }
 
   // 实时路径链：两算法「当前执行的点」沿各自前驱回溯到起点的路径，
-  // 每帧在路径层全清重画——A* 用黄色 4px、BFS 用白色 4px。
+  // 每帧在路径层全清重画——前景层 4px 实心（宽/色读 STYLE.LAYER_LIVE）。
   // A* 链 = cameFrom[当前关闭点]；BFS 链 = bfsParent[当前队首]。
   // 每步松弛/入队都可能改挂前驱，增量维护反而更贵，全清重画最省心；
   // 链长 O(路径长)，每帧 O(链长) 次描边可忽略不计
   drawLivePaths() {
     var f = this;
-    if (f.complete) return f; // 完成后 success 已画定稿路径，路径层清空
+    if (f.complete) return f; // 完成后 path 层清空，画面定格在范围层
     f.lctxP.setTransform(1, 0, 0, 1, 0, 0);
     f.lctxP.clearRect(0, 0, f.pathLayer.width, f.pathLayer.height);
     f.lctxP.setTransform(f.dpr, 0, 0, f.dpr, 0, 0);
     f.lctxP.translate(f.ox, f.oy);
-    f.lctxP.lineWidth = 4;
+    f.lctxP.lineWidth = STYLE.LAYER_LIVE.lineWidth;
     // 绘制顺序 = 层级：白链先画、黄链后画（canvas 后画盖先画），
     // 两链重叠段黄线始终盖在白线上面——A* 是主角
-    // BFS 链：当前队首（下一个待出队点）→ 起点。白色 4px——撒网是
-    // 黑色剪影，探测链用白色高亮反差，一眼盯住 BFS 的「当前触手」
+    // BFS 链：当前队首（下一个待出队点）→ 起点，一眼盯住 BFS 的「当前触手」
     if (f.bfsQueue.length && !f.bfsDone) {
-      f.lctxP.strokeStyle = '#fff';
+      f.lctxP.strokeStyle = STYLE.LAYER_LIVE.bfsColor;
       var b = f.bfsQueue[0];
       f.lctxP.beginPath();
       f.lctxP.moveTo(f.index2center(b).x, f.index2center(b).y);
@@ -818,7 +814,7 @@ class Astar {
     }
     // A* 链：黄链头（astarHead，见 watchOpenSet）→ 起点。astarDone
     // 后链头定格在终点，链完整显示「A* 认为的最短路」——供 BFS
-    // 收官前的等待期观者审视，success 后由 3px 定稿线接管
+    // 收官前的等待期观者审视（4px 实心黄，压过 α0.4 的关闭集底色）
     if (f.astarHead >= 0) {
       f.lctxP.strokeStyle = f.colorClosedSet;
       var v = f.astarHead;
@@ -864,7 +860,7 @@ class Astar {
     f.lctxV.translate(f.ox, f.oy);
     f.lctxE.fillStyle = f.colorDefault;
     f.lctxE.strokeStyle = f.colorDefault;
-    f.lctxE.lineWidth = 1;
+    f.lctxE.lineWidth = STYLE.LAYER_BG.edgeWidth;
 
     for (i = 0; i < f.adj.length; i++) {
       f.drawEdgeOn(f.lctxE, i);
@@ -872,10 +868,11 @@ class Astar {
     for (i = 0; i < f.adj.length; i++) {
       f.paintVertex(f.lctxV, i, f.colorDefault);
     }
-    // 隔墙标记：沿 L 形两臂画深灰墙线（臂点已孤立，墙线让障碍一眼可辨）
+    // 隔墙标记：不特殊着色——沿 L 形两臂重复描一遍网格色即可（臂点已
+    // 孤立，存在的意义是「断边」，无需视觉强调；保持与路网底边一致）
     if (f.wallEdges && f.wallEdges.length) {
-      f.lctxE.strokeStyle = '#555';
-      f.lctxE.lineWidth = 2;
+      f.lctxE.strokeStyle = f.colorDefault;
+      f.lctxE.lineWidth = STYLE.LAYER_BG.edgeWidth;
       f.wallEdges.forEach(function (e) {
         f.lctxE.beginPath();
         f.lctxE.moveTo(f.index2center(e[0]).x, f.index2center(e[0]).y);
@@ -885,7 +882,7 @@ class Astar {
     }
     return f;
   }
-  // 在指定上下文画单个顶点（离屏层专用；半径 SPTw-1 略小于路径线宽）
+  // 在指定上下文画单个顶点（离屏层专用；半径读 STYLE.POINT_RADIUS）
   paintVertex(ctx, index, color) {
     var f = this;
     ctx.fillStyle = color;
@@ -894,7 +891,7 @@ class Astar {
     ctx.arc(
       f.index2center(index).x,
       f.index2center(index).y,
-      f.SPTw - 1,
+      STYLE.POINT_RADIUS,
       0,
       2 * Math.PI,
       true,
@@ -961,12 +958,12 @@ class Astar {
 
     // 起终点标记：终点 V-1（右上）与起点 0（左下），--color3 绿色。
     // index2center 返回网格坐标系（带 translate(ox,oy) 偏移），
-    // 主画布无偏移，这里手动加上
+    // 主画布无偏移，这里手动加上；半径读 STYLE.ENDPOINT_RADIUS
     f.ctx.fillStyle = f.colorEndPoints;
     f.ctx.arc(
       f.index2center(f.V - 1).x + f.ox,
       f.index2center(f.V - 1).y + f.oy,
-      5,
+      STYLE.ENDPOINT_RADIUS,
       0,
       2 * Math.PI,
       true,
@@ -975,7 +972,7 @@ class Astar {
     f.ctx.arc(
       f.index2center(0).x + f.ox,
       f.index2center(0).y + f.oy,
-      5,
+      STYLE.ENDPOINT_RADIUS,
       0,
       2 * Math.PI,
       true,
