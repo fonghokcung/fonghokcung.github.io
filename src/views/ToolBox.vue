@@ -82,6 +82,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { TransformControls } from 'three/addons/controls/TransformControls.js';
 // lil-gui：three 官方示例同款 GUI 控件（随 three 依赖分发，零额外安装）
 import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import ThreeLayout from '@/components/ThreeLayout.vue';
@@ -173,13 +174,13 @@ function init() {
   // 照明：半球环境光 + 主平行光 + 冷补光 + 右后轮廓光（黑模型细节靠 rim light 撑起）
   scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8f99, 2.2));
   const sun = new THREE.DirectionalLight(0xfff2d6, 2.4);
-  sun.position.set(3, 6, 4);
+  sun.position.set(0.72, 6.64, 2.94);
   scene.add(sun);
   const fill = new THREE.DirectionalLight(0xbcd0ff, 0.9);
   fill.position.set(-4, 2, -3);
   scene.add(fill);
   const rim = new THREE.DirectionalLight(0xffffff, 4.6);
-  rim.position.set(-2, 5, -6); // 右后方高位，勾出模型顶部/侧缘亮边
+  rim.position.set(2.03, 2.12, -2.94); // 右后方高位，勾出模型顶部/侧缘亮边
   scene.add(rim);
 
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 200);
@@ -188,6 +189,10 @@ function init() {
   controls = new OrbitControls(camera, renderer.domElement);
   controls.enableDamping = false; // 关闭惯性：拾取标注是静态投影，惯性滑行会让引线漂离零件
   controls.target.set(0, 0.8, 0);
+  // 调试开关：灯光辅助（标记球 + 拖动）。调灯位时改 true，拖完把打印的
+  // 位置回填进上方 position.set 后再关掉
+  const SHOW_LIGHT_HELPERS = false;
+  if (SHOW_LIGHT_HELPERS) initLightHelpers([sun, fill, rim]); // 依赖 camera，须在其后初始化
   renderer.domElement.addEventListener('contextmenu', (e) =>
     e.preventDefault(),
   );
@@ -337,6 +342,101 @@ async function loadModels() {
   }
 }
 
+/* ===================== 平行光辅助与拖动 ===================== */
+// 每盏平行光配两件套：DirectionalLightHelper（线框 + 射线可视化）+
+// 一个挂在灯位上的标记球。标记球进拾取白名单——左键点中即把 TransformControls
+// attach 上去，拖动平移面/轴就是搬灯的位置；点空白处取消选中。
+// 平行光的「位置」即光位本身（target 固定原点方向），拖动即刻改变受光方向
+let lightHandles = []; // [{ light, helper, handle }]
+let lightHelperRoot = null; // 辅助组：随场景 traverse 释放时统一清理
+let tcontrols = null; // TransformControls 实例
+let activeLight = null; // 当前被拖动的平行光（点空白时 detach + 复位材质）
+
+const HANDLE_COLORS = ['#fff2d6', '#bcd0ff', '#ffffff']; // 与三盏灯同色系
+
+function initLightHelpers(lights) {
+  lightHelperRoot = new THREE.Group();
+  lightHelperRoot.name = 'lightHelpers';
+  scene.add(lightHelperRoot);
+
+  lights.forEach((light, i) => {
+    const helper = new THREE.DirectionalLightHelper(light, 1);
+    lightHelperRoot.add(helper);
+
+    // 标记球：MeshBasicMaterial 不受光照干扰，始终清晰可见
+    const handle = new THREE.Mesh(
+      new THREE.SphereGeometry(0.22, 16, 12),
+      new THREE.MeshBasicMaterial({
+        color: HANDLE_COLORS[i % HANDLE_COLORS.length],
+      }),
+    );
+    handle.name = `lightHandle-${i}`;
+    handle.userData.light = light; // 拾取反查：球 → 所属灯
+    lightHelperRoot.add(handle);
+    lightHandles.push({ light, helper, handle });
+  });
+
+  // TransformControls（three r186：可视 gizmo 需经 getHelper() 入场景）
+  tcontrols = new TransformControls(camera, renderer.domElement);
+  tcontrols.setMode('translate');
+  tcontrols.setSize(0.8);
+  scene.add(tcontrols.getHelper());
+  // 拖 gizmo 期间冻结相机漫游与自动环绕，灯位实时同步给标记球
+  tcontrols.addEventListener('dragging-changed', (e) => {
+    if (controls) controls.enabled = !e.value;
+    userDragging = e.value;
+    if (e.value) flyGoal = null;
+    if (!e.value) {
+      resumeAt = performance.now() + 2000;
+      logLightPositions(); // 拖动结束：打印三盏灯当前位置（调试用）
+    }
+  });
+  tcontrols.addEventListener('objectChange', () => {
+    for (const h of lightHandles) {
+      h.handle.position.copy(h.light.position);
+      h.helper.update();
+    }
+  });
+}
+
+// 打印三盏灯当前位置：拖完灯后贴到控制台，输出可直接回填为初始状态
+const LIGHT_NAMES = ['sun 主光', 'fill 补光', 'rim 轮廓光'];
+function logLightPositions() {
+  for (const { light, handle } of lightHandles) {
+    const p = light.position;
+    const name = LIGHT_NAMES[Number(handle.name.split('-')[1])] ?? 'light';
+    console.log(
+      `${name}: (${p.x.toFixed(2)}, ${p.y.toFixed(2)}, ${p.z.toFixed(2)})`,
+    );
+  }
+}
+
+// 每帧同步：拖动之外的灯位变化（目前无，但 helper 需常刷）与标记球位置兜底
+function stepLightHelpers() {
+  for (const h of lightHandles) {
+    if (tcontrols?.dragging && tcontrols.object === h.light) continue;
+    h.handle.position.copy(h.light.position);
+    h.helper.update();
+  }
+}
+
+// 拾取命中标记球：attach TransformControls 到该灯；点空白时取消
+function pickLightHandle(mesh) {
+  if (mesh) {
+    const light = mesh.userData.light;
+    if (light && light !== activeLight) {
+      activeLight = light;
+      tcontrols.attach(light);
+    }
+    return true; // 命中标记球：拦截后续零件拾取
+  }
+  if (activeLight) {
+    tcontrols.detach();
+    activeLight = null;
+  }
+  return false;
+}
+
 /* ===================== 拾取与选中 ===================== */
 let pickedMesh = null; // 当前选中零件（左键：高亮 + 标注）
 
@@ -470,8 +570,8 @@ function applyHighlight(mesh) {
 // 实现要点：把 mesh attach 到「位于圆心、局部轴对齐世界」的 pivot
 // Group 下，转 pivot 即绕过圆心的世界轴转；手推矩阵公式在 gltf 隐藏
 // 父变换面前接连出错（漂移/绕错轴/飞出画面），attach 把空间换算全部
-// 交给引擎，无公式可错。圆心 = 顶面高度带顶点质心 XZ（转盘/旋钮，
-// 全局质心会被底座细节拉偏）或全局顶点质心（滚轮）。
+// 交给引擎，无公式可错。圆心：竖直轴件（转盘/旋钮）= 顶面高度带 XZ
+// 包围盒中心（见 startSpin 内注释），滚轮 = 全局顶点质心。
 // 角速度由「人手操作」状态机驱动（见 SPIN_STATES）。
 const SPIN_PARTS = {
   转盘: new THREE.Vector3(0, 1, 0),
@@ -512,38 +612,49 @@ function nextSpinState(s, partLabel) {
 // 开始自转：建 pivot Group（位于圆心、局部轴对齐世界轴）并把 mesh
 // attach 进去，渲染循环只转 pivot 即可
 function startSpin(mesh, axisWorld, partLabel) {
-  // 世界系圆心 XZ = 顶点质心：
-  //   竖直轴件（转盘/旋钮）只取「顶面高度带」（最高 10%）内的顶点——
-  //   用户视觉参照是顶面，全局质心会被底座细节拉偏导致旋转发晃；
-  //   顶带内顶点全落在圆盘/顶环上，均值即真圆心
-  //   滚轮（横轴）取全局质心（已验证稳定）
+  // 世界系圆心：
+  //   竖直轴件（转盘/旋钮）= 顶面高度带顶点的 XZ 包围盒中心。转盘是
+  //   圆柱体但底部一侧有凸起（打破对称性，整体包围盒中心被撑偏）；
+  //   顶面是纯圆且不受凸起影响，其包围盒中心即真实圆心——包围盒对
+  //   顶点密度不敏感（顶点质心会随相位漂移发晃），天然稳定
+  //   滚轮（横轴）取顶点质心（已验证稳定）
   const box = new THREE.Box3().setFromObject(mesh);
   const pos = mesh.geometry.attributes.position;
-  const vtx = new THREE.Vector3();
-  let cx = 0;
-  let cz = 0;
-  let n = 0;
+  const vtx = new THREE.Vector3(); // 临时工作变量：循环内逐个装填顶点世界坐标，用完即弃
+  // 旋转轴的「点 + 方向向量」表示中的点：轴上参考点（世界系）。
+  // 初值 = 整体包围盒中心，下方按轴向覆写 XZ（竖直轴的 y 分量不影响旋转）
+  const centerWorld = box.getCenter(new THREE.Vector3());
   if (axisWorld.y !== 0) {
+    // 竖直轴件：顶面高度带顶点的 XZ 包围盒中心（凸起不影响顶面）
     const bandY = box.max.y - (box.max.y - box.min.y) * 0.1;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minZ = Infinity;
+    let maxZ = -Infinity;
     for (let i = 0; i < pos.count; i++) {
       vtx.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
       if (vtx.y >= bandY) {
-        cx += vtx.x;
-        cz += vtx.z;
-        n++;
+        minX = Math.min(minX, vtx.x);
+        maxX = Math.max(maxX, vtx.x);
+        minZ = Math.min(minZ, vtx.z);
+        maxZ = Math.max(maxZ, vtx.z);
       }
     }
+    centerWorld.x = (minX + maxX) / 2;
+    centerWorld.z = (minZ + maxZ) / 2;
   } else {
+    // 横轴件（滚轮）：全局顶点质心（已验证稳定）
+    let cx = 0;
+    let cz = 0;
     for (let i = 0; i < pos.count; i++) {
       vtx.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
       cx += vtx.x;
       cz += vtx.z;
     }
-    n = pos.count;
+    centerWorld.x = cx / pos.count;
+    centerWorld.z = cz / pos.count;
   }
-  const centerWorld = box.getCenter(new THREE.Vector3());
-  centerWorld.x = cx / n;
-  centerWorld.z = cz / n;
+  // 至此 (centerWorld, axisWorld) 构成旋转轴的完整「点 + 方向」表示
 
   // pivot：位置 = 圆心（换算进父空间）；姿态 = 父世界旋转的逆
   // ⇒ pivot 局部轴与世界轴重合，绕其局部 Y/X 转即绕世界轴转
@@ -715,6 +826,9 @@ function pickAt(e, btn) {
   pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
   const hits = raycaster.intersectObjects(scene.children, true);
+  // 标记球优先：点中灯位球 → 交给灯光拖动逻辑，不再走零件拾取
+  const lightHit = hits.find((h) => h.object.name.startsWith('lightHandle-'));
+  if (pickLightHandle(lightHit?.object || null)) return;
   const mesh = hits.find((h) => h.object.isMesh)?.object;
   const hitName = mesh?.name || '';
   // 只认对照表里的 14 个零件；未命中（空白或非键位零件）一律按取消选中处理
@@ -948,6 +1062,7 @@ function startLoop() {
     lastT = now;
     elapsed += dt;
     stepFly(dt); // 相机飞近动画（若在飞）
+    stepLightHelpers(); // 灯位标记球/辅助线随灯刷新
 
     if (autoOrbit && !userDragging && now >= resumeAt) {
       const offset = camera.position.clone().sub(controls.target);
@@ -983,6 +1098,11 @@ function startLoop() {
     //（Qp = 父世界旋转）。不能用 rotateOnWorldAxis——它直接前乘、
     // 假设父级无旋转，gltf 父链的旋转会把世界轴共轭成斜轴。
     // 显式组合后 pivot 世界姿态恰为 R：纯绕世界轴旋转，圆心不动。
+    // 知识点：setFromAxisAngle 生成的四元数只含「轴方向 + 角度」，轴
+    // 经过哪个点的信息它承载不了——纯四元数只能表示绕原点的旋转
+    //（线性变换）。「绕过点 P 的轴转」是仿射变换 T(P)·R·T(−P)，其中
+    // 点 P 由 pivot.position 承载（startSpin 时已钉在轴上），四元数
+    // 只负责「怎么转」，旋转锚点交给场景图的平移层级——职责分离
     if (spin) {
       spin.rest -= dt;
       if (spin.rest <= 0) nextSpinState(spin, spin.partLabel);
@@ -1064,6 +1184,25 @@ function dispose() {
   matProxy = null;
   renderer?.domElement.removeEventListener('pointerdown', onPointerDown);
   renderer?.domElement.removeEventListener('pointerup', onPointerUp);
+  // 灯光辅助：gizmo 先 detach，helper 线框几何/材质与标记球几何/材质
+  // 不挂 isMesh 的常规资产上，显式释放（traverse 遍历 lightHelperRoot 已覆盖，但
+  // transformGizmo 是独立 helper 对象，需单独 dispose）
+  tcontrols?.detach();
+  tcontrols?.getHelper()?.traverse?.((o) => {
+    o.geometry?.dispose?.();
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    for (const m of mats) m?.dispose?.();
+  });
+  tcontrols?.dispose();
+  tcontrols = null;
+  activeLight = null;
+  for (const h of lightHandles) {
+    h.helper.dispose();
+    h.handle.geometry.dispose();
+    h.handle.material.dispose();
+  }
+  lightHandles = [];
+  lightHelperRoot = null;
   controls?.dispose();
   scene?.traverse((o) => {
     if (o.isMesh) {
