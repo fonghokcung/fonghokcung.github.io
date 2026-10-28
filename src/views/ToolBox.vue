@@ -287,13 +287,9 @@ async function loadModels() {
     const preMoveMaxX = box.max.x;
     b.model.position.x -= center.x;
     b.model.position.z -= center.z;
-    const finalBox = new THREE.Box3().setFromObject(b.model);
-    const c = finalBox.getCenter(new THREE.Vector3());
-    const size = finalBox.getSize(new THREE.Vector3());
-    const dist =
-      (Math.max(size.x, size.y) / 2 / Math.tan((Math.PI / 180) * 22.5)) * 2.8;
-    camera.position.set(c.x, c.y + size.y * 1.4, c.z + dist);
-    controls.target.copy(c);
+    // 初始机位：由取景调试日志手调后回填（主角已 X/Z 归零居中，固定坐标即可）
+    camera.position.set(-3.14, 7.83, 5.46);
+    controls.target.set(0, 0.42, 0);
     controls.update();
     cursor = preMoveMaxX + GAP; // 卫星从主角右缘排开
     revealSoon();
@@ -383,7 +379,7 @@ function initMatGui(container) {
     width: 220,
   });
   matGui.domElement.classList.add('mat-gui');
-  matGui.close(); // 默认收起，拾取零件时自动展开
+  matGui.close(); // 默认收起，展开与否始终由用户自己点击决定
 
   matProxy = {
     颜色: '#fbd509', // 起点 = 主题黄（与 applyHighlight 一致）
@@ -734,7 +730,7 @@ function pickAt(e, btn) {
     pendingHlMesh = null; // 作废未兑现的延迟变黄
     pickedMesh = null;
     label.value.visible = false;
-    matGui?.close(); // GUI 随取消选中收起
+    if (isDesktop) matGui?.close(); // PC 端随取消选中收起；移动端不自动改变展开状态
     return;
   }
 
@@ -756,13 +752,14 @@ function pickAt(e, btn) {
   stopPress(); // 按键动画是一次性的，任何新拾取都先复位
   pickedMesh = mesh;
   const label_ = PARTS[hitName];
-  // 材质 GUI：非按压件已变黄，灌入高亮材质值（颜色起点 = 主题黄）并展开；
-  // 按压件等按压结束变黄时由 applyHighlight 内灌入，这里也先展开
+  // 材质 GUI：非按压件已变黄，灌入高亮材质值（颜色起点 = 主题黄）；
+  // 按压件等按压结束变黄时由 applyHighlight 内灌入。展开与否：PC 端
+  // 沿用拾取即展开的原逻辑；移动端屏幕空间有限，不自动改变展开状态
   if (!PRESS_PARTS[label_]) {
     applyHighlight(mesh);
     syncMatGui(mesh);
   }
-  matGui?.open();
+  if (isDesktop) matGui?.open();
   // 旋转/按压/标注的呈现：若相机需要飞近，挂起到落地后执行——
   // 先飞到位，再看到零件动起来、引线拉出，叙事顺序自然
   const reveal = () => {
